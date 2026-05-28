@@ -20,16 +20,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # We remove build tools at the end of the same layer to keep the image small.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 libgpiod2 mariadb-client tini \
-        gcc g++ make swig python3-dev libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Install Python deps first so this layer caches.
+# `lgpio` is deliberately NOT in requirements.txt (see comment there) — it
+# only matters on a real Pi and would force a from-source build here.
 COPY requirements.txt ./
 RUN pip install -r requirements.txt \
-    && apt-get purge -y --auto-remove gcc g++ make swig python3-dev libffi-dev \
-    && rm -rf /var/lib/apt/lists/* /root/.cache/pip
+    && rm -rf /root/.cache/pip
 
 # Copy application code.
 COPY plantwatch.py \

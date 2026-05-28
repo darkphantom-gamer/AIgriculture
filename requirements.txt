@@ -29,6 +29,16 @@ reportlab>=4.1             # 48-hour PDF farm report
 meshtastic>=2.3            # LoRa bridge (only needed if MESH_ENABLED=true)
 pypubsub>=4.0              # event bus used by the meshtastic bridge
 
-# ── Raspberry Pi hardware (no-ops off-Pi; imports are guarded in code) ───────
-lgpio>=0.2                 # relays + buzzers
-smbus2>=0.4                # ADS1115 moisture ADC over I2C
+# ── Raspberry Pi hardware (off-Pi installs can skip — plantwatch.py
+#    guards every hardware import and degrades gracefully) ──────────────────
+smbus2>=0.4                # ADS1115 moisture ADC over I2C (pure Python)
+
+# `lgpio` is intentionally NOT listed here.
+# It links against liblgpio (a system C library) which isn't in Debian slim
+# images, so installing it would fail the Docker build. Get it instead via:
+#
+#   On Raspberry Pi OS  :   sudo apt install python3-lgpio
+#   On a non-apt Linux  :   pip install lgpio   (needs `liblgpio-dev`)
+#
+# Without lgpio the dashboard, sensors, FLORA, cameras, and Meshtastic still
+# work — only relays / buzzers become no-ops (you'll see a [WARN] at startup).
