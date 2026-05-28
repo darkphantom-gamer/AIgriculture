@@ -30,6 +30,14 @@ SECURITY_HEF_PATH = os.getenv(
 
 
 # ── Hailo / GStreamer ──────────────────────────────────────────────────────────
+# Importing the Hailo Python libraries succeeds whenever they are installed in
+# the active venv. That is NOT the same as "the Hailo HAT is plugged in." We
+# probe the actual accelerator below; only if BOTH the libs import AND the chip
+# is detected do we mark HAILO_AVAILABLE = True. In any other case main.py runs
+# on CPU YOLO and the dashboard / sensors / irrigation / FLORA / email / mesh
+# all stay fully functional.
+HAILO_AVAILABLE = False
+_HAILO_REASON = ""
 try:
     import cv2
     import gi
@@ -41,19 +49,23 @@ try:
     from hailo_apps.python.core.gstreamer.gstreamer_app import app_callback_class
     from hailo_apps.python.pipeline_apps.detection.detection_pipeline import GStreamerDetectionApp
     from hailo_apps.python.core.common.buffer_utils import get_caps_from_pad, get_numpy_from_buffer
-    # The Hailo app builds its GStreamer display pipeline during __init__.
-    # Force a headless sink before construction so Pi desktop never opens a
-    # local preview window; the dashboard MJPEG stream remains the UI output.
+    from hailo_apps.python.core.common.installation_utils import detect_hailo_arch
+    # Force a headless sink before any pipeline is constructed — no local preview.
     hailo_gst_app.GST_VIDEO_SINK = "fakesink"
-    HAILO_AVAILABLE = True
     hailo_logger = get_logger(__name__)
-    print("[INFO] Hailo-10H accelerator detected — using HEF pipeline for security camera")
-except Exception:
-    # No Hailo HAT — this is the standard CPU path. Security camera + FarmMonitor
-    # still run via Ultralytics YOLO on CPU. Dashboard, sensors, irrigation, FLORA,
-    # email, and Meshtastic are all fully functional.
-    HAILO_AVAILABLE = False
-    print("[INFO] Hailo accelerator not detected — running on CPU YOLO (the default mode)")
+    # Hailo libs are present. Probe the physical accelerator now, before any
+    # GStreamerDetectionApp is constructed (its __init__ asserts on a missing
+    # HAT and would otherwise crash the whole process).
+    try:
+        _arch = os.getenv("HAILO_ARCH") or detect_hailo_arch()
+        HAILO_AVAILABLE = True
+        print(f"[INFO] Hailo accelerator detected ({_arch}) — using HEF pipeline for security camera")
+    except Exception as _he:
+        _HAILO_REASON = f"libs installed but no accelerator on the bus ({_he})"
+        print(f"[INFO] {_HAILO_REASON} — running on CPU YOLO (the default mode)")
+except Exception as _he:
+    _HAILO_REASON = f"Hailo libraries not installed ({_he})"
+    print(f"[INFO] Hailo accelerator not detected — running on CPU YOLO (the default mode)")
     class _FakeLogger:
         def info(self, m):    print(f"[INFO] {m}")
         def warning(self, m): print(f"[WARN] {m}")
@@ -4436,14 +4448,23 @@ def main():
         name="uvicorn",
     ).start()
 
+    hailo_app = None
     if HAILO_AVAILABLE and security_source:
         _patch_hailo_picamera_fps()
         user_data = FarmCallback()
-        hailo_app = GStreamerDetectionApp(app_callback, user_data)
-        user_data.use_frame = True
-        if hasattr(hailo_app, "options_menu"):
-            hailo_app.options_menu.use_frame = False
-        hailo_app.video_sink = "fakesink"
+        try:
+            hailo_app = GStreamerDetectionApp(app_callback, user_data)
+            user_data.use_frame = True
+            if hasattr(hailo_app, "options_menu"):
+                hailo_app.options_menu.use_frame = False
+            hailo_app.video_sink = "fakesink"
+        except Exception as e:
+            hailo_logger.warning(
+                f"Hailo pipeline construction failed at runtime ({e}); "
+                f"continuing without security camera"
+            )
+            hailo_app = None
+    if hailo_app is not None:
         try:
             hailo_app.run()
         finally:
