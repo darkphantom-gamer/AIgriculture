@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌱 AIgriculture
+# AIgriculture
 
 **An open-source smart farm system for Raspberry Pi.**
 Monitor soil moisture, automate irrigation, detect disease, and chat with your farm using AI — all from a single web dashboard.
