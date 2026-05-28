@@ -14,7 +14,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ed)](https://docs.docker.com/)
 
 </div>
 
@@ -64,7 +63,7 @@
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
 cp .env.example .env            # потом РЕДАКТИРУЙТЕ .env (см. следующий раздел)
-docker compose up -d
+python main.py
 ```
 
 Откройте `http://<pi-ip>:8000`.
@@ -74,7 +73,7 @@ docker compose up -d
 > **Хотите нативную установку?**
 > ```bash
 > pip install -r requirements.txt --break-system-packages
-> python plantwatch.py
+> python main.py
 > ```
 
 ---
@@ -121,7 +120,7 @@ notifications:
 
 ## 🔌 Подключение (поменяйте один файл под свою плату)
 
-Карта пинов по умолчанию (как поставляется в `plantwatch.py`):
+Карта пинов по умолчанию (как поставляется в `main.py`):
 
 | Компонент | BCM-пины по умолчанию |
 |-----------|----------------------|
@@ -135,8 +134,7 @@ notifications:
 
 ```bash
 cp wiring.example.yaml wiring.yaml      # потом редактируйте wiring.yaml
-# Для Docker раскомментируйте монтирование wiring.yaml в docker-compose.yml.
-docker compose up -d --force-recreate
+python main.py
 ```
 
 `wiring.yaml` позволяет переназначить любой пин, переключить active-high/low, изменить количество и частоту сирен, перекалибровать датчики — без правки кода.
@@ -214,23 +212,22 @@ FLORA понимает команды на естественном языке:
 
 ```bash
 # CSI-камера Raspberry Pi (через --input)
-python plantwatch.py --input csi:0
+python main.py --input csi:0
 
 # USB-камера
-python plantwatch.py --input /dev/video0
+python main.py --input /dev/video0
 
 # Сетевая / RTSP-камера
-python plantwatch.py --input rtsp://user:pass@192.168.1.10/live
+python main.py --input rtsp://user:pass@192.168.1.10/live
 ```
 
-В Docker раскомментируйте соответствующую строку `command:` в `docker-compose.yml`.
 
 ---
 
 ## 🧠 Подключите свои ML-модели
 
 Детекторы болезней и зрелости — это просто **файлы Ultralytics YOLO `.pt`**.
-Обучите их на своей культуре, положите в `models/` рядом с `plantwatch.py`, и приложение их подхватит.
+Обучите их на своей культуре, положите в `models/` рядом с `main.py`, и приложение их подхватит.
 
 ```bash
 # Стандартные модели лежат в рабочей папке FarmMonitor.
@@ -249,7 +246,7 @@ cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
 
 ```bash
 # Сначала установите HailoRT SDK, затем запустите с Hailo-флагами:
-python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
+python main.py --input /dev/video0 --arch hailo10h --use-frame
 ```
 
 ---
@@ -257,7 +254,7 @@ python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
 ## CLI-справка
 
 ```
-python plantwatch.py [options]
+python main.py [options]
 
   --input             вход камеры (csi:N | /dev/videoN | rtsp://... | path)
   --arch              hailo10h | cpu (по умолчанию: cpu)
@@ -273,8 +270,8 @@ python plantwatch.py [options]
 
 ```
 AIgriculture/
-├── plantwatch.py                       # основное приложение: дашборд + датчики + полив
-├── dashboard_sample.html               # дашборд (одностраничное приложение)
+├── main.py                       # основное приложение: дашборд + датчики + полив
+├── dashboard.html               # дашборд (одностраничное приложение)
 ├── login.html                          # экран входа
 ├── farm_monitor_designer_email.py      # шаблон писем с уведомлениями
 ├── farm_monitor_pt_scan.py             # сканер болезней / зрелости
@@ -287,8 +284,6 @@ AIgriculture/
 ├── .env.example                        # ← скопировать в .env и отредактировать
 ├── config.example.yaml                 # ← скопировать в config.yaml (для e-mail)
 ├── wiring.example.yaml                 # ← скопировать в wiring.yaml (для своих пинов)
-├── docker-compose.yml
-├── Dockerfile
 └── requirements.txt
 ```
 

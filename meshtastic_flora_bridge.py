@@ -28,8 +28,8 @@ from pubsub import pub
 
 _HOME = Path.home()
 DEFAULT_DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://127.0.0.1:8000")
-DEFAULT_USER = os.getenv("ADMIN_USER", "FarmAdmin")
-DEFAULT_PASS = os.getenv("ADMIN_PASS", "Admin@farm")
+DEFAULT_USER = os.getenv("ADMIN_USER", "admin")
+DEFAULT_PASS = os.getenv("ADMIN_PASS", "")
 DEFAULT_ALLOWED_NODE = os.getenv("MESHTASTIC_ALLOWED_NODE", "")
 DEFAULT_MODE = "cloud"
 DEFAULT_MAX_CHARS = 180

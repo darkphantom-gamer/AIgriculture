@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""
-Send a branded AIgriculture Farm Monitor detection email.
+"""Branded AIgriculture alert email composer.
 
-This script is intentionally standalone so FarmMonitor email design can be
-tested without rerunning the full camera pipeline. It reads config_demo.yaml
-locally, but never prints SMTP credentials or recipient addresses.
+Standalone so the email template can be previewed without running the camera
+pipeline. SMTP credentials and the recipient address come from config.yaml
+and are never echoed to logs.
 """
 from __future__ import annotations
 
@@ -20,11 +19,11 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = BASE_DIR / "config_demo.yaml"
+DEFAULT_CONFIG = BASE_DIR / "config.yaml"
 
 
 def read_simple_yaml(path: Path) -> dict:
-    """Read the simple section/key YAML style used by config_demo.yaml."""
+    """Parse the simple `section: / key: value` YAML used by config.yaml."""
     cfg: dict[str, dict[str, str]] = {}
     section = None
     if not path.exists():
@@ -276,7 +275,7 @@ def send_email(args: argparse.Namespace) -> None:
     notifications = cfg.get("notifications", {})
     to_email = args.to or notifications.get("to_email") or notifications.get("default_to")
     if not to_email:
-        raise RuntimeError("No recipient configured. Add notifications.to_email to config_demo.yaml or pass --to.")
+        raise RuntimeError("No recipient configured. Add notifications.to_email to config.yaml or pass --to.")
     required = {
         "host": smtp.get("host"),
         "port": smtp.get("port"),

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""
-PyTorch/Ultralytics scanner for Farm Monitor batches.
+"""PyTorch/Ultralytics scanner for Farm Monitor batches.
 
-This mirrors farm_monitor_raw_scan.py output so plantwatch.py can switch from
-HEF to PT without changing the dashboard workflow, storage, or UI contract.
+Output schema matches the HEF scanner so main.py can switch between CPU PT
+and Hailo HEF without touching the dashboard, storage, or UI contract.
 """
 
 from __future__ import annotations

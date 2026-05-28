@@ -1,18 +1,9 @@
-"""
-plantwatch.py — Plant Monitoring Console · Unified Backend
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Hardware:
-  · ADS1115  → I2C 0x48/0x49 → channels A0-A3 each (8x capacitive moisture)
-  · Relays   → BCM 17,27,22,23,5,6,13,19 (active LOW) → 8x water pumps
-  · Hailo-10H→ /dev/video0 via GStreamer (YOLOv8 farm detection)
-  · Buzzer   → NOT USED in this build
+"""AIgriculture main app — dashboard, sensors, irrigation, cameras, FLORA, mesh.
 
-Run:
-  source ~/venv_hailo_apps/bin/activate
-  python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
+Hardware pins live in wiring.yaml. Credentials and tunables live in .env and
+config.yaml. See README.md for the full setup walkthrough.
 
-Dashboard:  http://<pi-ip>:8000
-WebSocket:  ws://<pi-ip>:8000/ws
+Run:  python main.py
 """
 
 import os, sys, time, threading, json, struct, asyncio, smtplib, re, hashlib, subprocess, shutil
@@ -56,10 +47,13 @@ try:
     hailo_gst_app.GST_VIDEO_SINK = "fakesink"
     HAILO_AVAILABLE = True
     hailo_logger = get_logger(__name__)
-    print("[INFO] Hailo-10H pipeline ready")
-except Exception as _he:
+    print("[INFO] Hailo-10H accelerator detected — using HEF pipeline for security camera")
+except Exception:
+    # No Hailo HAT — this is the standard CPU path. Security camera + FarmMonitor
+    # still run via Ultralytics YOLO on CPU. Dashboard, sensors, irrigation, FLORA,
+    # email, and Meshtastic are all fully functional.
     HAILO_AVAILABLE = False
-    print(f"[WARN] Hailo not available ({_he}) — running in web-only mode")
+    print("[INFO] Hailo accelerator not detected — running on CPU YOLO (the default mode)")
     class _FakeLogger:
         def info(self, m):    print(f"[INFO] {m}")
         def warning(self, m): print(f"[WARN] {m}")
@@ -75,7 +69,7 @@ except ImportError:
     _PICAMERA2_AVAILABLE = False
 
 # ── Optional wiring.yaml — change GPIO/I2C without editing source ────────────
-# Drop a wiring.yaml next to plantwatch.py (or set $WIRING_FILE) to override
+# Drop a wiring.yaml next to main.py (or set $WIRING_FILE) to override
 # relay pins, ADS1115 addresses, calibration, and buzzer pins. Anything left
 # out falls back to the default values defined further below, so the file is
 # entirely optional.
@@ -654,8 +648,7 @@ for _p, _meta in dict(_PENDING_EXTRA_PLANTS).items():
         print(f"[WARN] could not restore plant {_p}: {_e}")
 
 
-# Runtime notification email. This intentionally resets when plantwatch.py restarts,
-# so the dashboard asks again on a fresh run.
+# Runtime notification email. Resets on restart so the dashboard asks again.
 _notification_email = None
 _notification_lock = threading.Lock()
 _notify_last_sent = {}
@@ -2179,11 +2172,18 @@ def _db_init():
                 conn.commit()
                 _ensure_user_columns(cur)
                 conn.commit()
-                # Seed default admin if table is empty
+                # Seed default admin if table is empty.
+                # If ADMIN_PASS is unset/blank, generate a random one and print
+                # it loudly so the operator can copy it from systemd logs.
                 cur.execute("SELECT COUNT(*) as n FROM users")
                 if cur.fetchone()["n"] == 0:
-                    seed_user = os.getenv("ADMIN_USER", "FarmAdmin")
-                    seed_pass = os.getenv("ADMIN_PASS", "Admin@farm")
+                    seed_user = os.getenv("ADMIN_USER", "admin").strip() or "admin"
+                    seed_pass = os.getenv("ADMIN_PASS", "").strip()
+                    auto_generated = False
+                    if not seed_pass:
+                        import secrets as _secrets
+                        seed_pass = _secrets.token_urlsafe(12)
+                        auto_generated = True
                     if BCRYPT_AVAILABLE:
                         ph = _pwd_ctx.hash(seed_pass)
                     else:
@@ -2193,14 +2193,25 @@ def _db_init():
                         (seed_user, ph, ADMIN_ROLE, "Farm Admin", _asset_url("farmer.png"))
                     )
                     conn.commit()
-                    hailo_logger.info(
-                        f"Default user {seed_user} seeded in DB — "
-                        f"PLEASE change the password from the dashboard on first login."
-                    )
+                    if auto_generated:
+                        hailo_logger.info("=" * 58)
+                        hailo_logger.info(
+                            f"  Default user '{seed_user}' seeded — initial password:"
+                        )
+                        hailo_logger.info(f"      {seed_pass}")
+                        hailo_logger.info(
+                            "  Log in and change it from Settings → Profile."
+                        )
+                        hailo_logger.info("=" * 58)
+                    else:
+                        hailo_logger.info(
+                            f"Default user '{seed_user}' seeded in DB — "
+                            f"please change the password from the dashboard on first login."
+                        )
                 cur.execute(
                     "UPDATE users SET role=%s, display_name=%s, avatar_url=%s WHERE username=%s",
                     (ADMIN_ROLE, "Farm Admin", _asset_url("farmer.png"),
-                     os.getenv("ADMIN_USER", "FarmAdmin"))
+                     os.getenv("ADMIN_USER", "admin"))
                 )
         hailo_logger.info("Database tables ready")
     except Exception as e:
@@ -2486,7 +2497,7 @@ async def security_middleware(request: Request, call_next):
 def _health_payload():
     return {
         "ok": True,
-        "service": "plantwatch",
+        "service": "aigriculture",
         "time": datetime.now().isoformat(timespec="seconds"),
         "hailo_available": bool(HAILO_AVAILABLE),
         "gpio_available": bool(GPIO_AVAILABLE),
@@ -4228,12 +4239,12 @@ def _inject_dashboard_integration_patch(html: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(_user: str = Depends(require_auth)):
-    html_path = Path(__file__).parent / "dashboard_sample.html"
+    html_path = Path(__file__).parent / "dashboard.html"
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
         html = _inject_dashboard_integration_patch(_inject_sensor_ui_patch(html))
         return _no_store(HTMLResponse(_apply_content_hashed_assets(html)))
-    return _no_store(HTMLResponse("<h1>dashboard_sample.html not found alongside plantwatch.py</h1>",
+    return _no_store(HTMLResponse("<h1>dashboard.html not found alongside main.py</h1>",
                                   status_code=404))
 
 # ── Runtime performance defaults ──────────────────────────────────────────────
@@ -4401,7 +4412,7 @@ def main():
     security_source = _extract_security_cam_arg()
     _ensure_pipeline_perf_defaults(security_source)
     hailo_logger.info("=" * 58)
-    hailo_logger.info("  Plant Monitoring Console — plantwatch.py")
+    hailo_logger.info("  AIgriculture — main.py")
     hailo_logger.info(f"  Relays  : BCM {RELAY_PIN_SUMMARY}")
     hailo_logger.info(f"  ADS1115 : {'READY' if I2C_AVAILABLE else 'OFFLINE'}")
     hailo_logger.info(f"  GPIO    : {'OK' if GPIO_AVAILABLE else 'SIMULATED'}")

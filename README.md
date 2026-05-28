@@ -14,7 +14,6 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ed)](https://docs.docker.com/)
 
 </div>
 
@@ -35,6 +34,8 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 | **Meshtastic** | LoRa bridge — FLORA answers any channel or DM from your mesh network |
 | **Dashboard** | Dark-theme single-page app: overview, cameras, AI chat, events log, settings |
 
+The default path runs **entirely on CPU** — no Hailo HAT required. Hailo is a drop-in accelerator if you have one; the app detects it automatically.
+
 ---
 
 ## 🛠️ Hardware — Beginner / Testing build
@@ -54,28 +55,71 @@ Don't have a real farm yet? **You don't need one.** Here's the smallest kit that
 | **+** | **Meshtastic LoRa radio** *(optional, off-grid chat)*<br><img src="docs/assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | Chat with FLORA from outside Wi-Fi range over a LoRa mesh. | Optional. Heltec / LilyGo boards with 433 / 868 / 915 MHz antennas all work. Skip if you only need the web UI. |
 
 **Minimum testing build** (just to play with the dashboard on a desk):
-> 1 × Pi · 1 × ADS1115 · 1 × moisture sensor · 1 × USB camera. That's it. No relays, no pumps, no Hailo. Use the "+ Add sensors" button in the dashboard once it's up.
+> 1 × Pi · 1 × ADS1115 · 1 × moisture sensor · 1 × USB camera. That's it. No relays, no pumps, no Hailo. Use the **"+ Add sensors"** button in the dashboard once it's up.
 
 ---
 
-## 🚀 Quick start
+## 🚀 Quick start (Raspberry Pi)
 
 ```bash
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
-cp .env.example .env            # then EDIT .env (see next section)
-docker compose up -d
+
+# 1) System packages (one-time)
+sudo apt update
+sudo apt install -y python3-lgpio python3-pip i2c-tools mariadb-server
+sudo raspi-config nonint do_i2c 0          # enable I2C
+
+# 2) Python deps
+pip install -r requirements.txt --break-system-packages
+
+# 3) Configure
+cp .env.example .env                       # then EDIT .env (admin user/pass, API keys)
+cp config.example.yaml config.yaml         # then EDIT config.yaml (SMTP for email alerts)
+cp wiring.example.yaml wiring.yaml         # ONLY if you changed default pins
+
+# 4) Run
+python main.py
 ```
 
-Open `http://<pi-ip>:8000`.
+Open `http://<pi-ip>:8000` and log in with the `ADMIN_USER` / `ADMIN_PASS` you set in `.env`.
 
-> **Running on a laptop / non-Pi?** This still works. GPIO and I2C silently no-op when the hardware isn't there — you get the full dashboard, AI chat, and (USB / network) cameras.
+> **Running on a laptop / non-Pi?** This still works. GPIO and I²C silently no-op when the hardware isn't there — you get the full dashboard, AI chat, and (USB / network) cameras. Skip step 1 entirely; just `pip install -r requirements.txt` and `python main.py`.
 
-> **Native install instead?**
-> ```bash
-> pip install -r requirements.txt --break-system-packages
-> python plantwatch.py
-> ```
+### Database
+
+The default config talks to MariaDB / MySQL on `localhost:3306`. After `sudo apt install mariadb-server`, create a user + database to match your `.env`:
+
+```bash
+sudo mysql -e "CREATE DATABASE plantmonitor;
+               CREATE USER 'plantmonitor'@'localhost' IDENTIFIED BY 'CHANGE-ME';
+               GRANT ALL ON plantmonitor.* TO 'plantmonitor'@'localhost';
+               FLUSH PRIVILEGES;"
+```
+
+Set `DB_USER`, `DB_PASS`, `DB_NAME` in `.env` to match. The app creates its tables automatically on first run.
+
+### Run on boot (optional)
+
+```bash
+sudo tee /etc/systemd/system/aigriculture.service > /dev/null <<EOF
+[Unit]
+Description=AIgriculture
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/AIgriculture
+ExecStart=/usr/bin/python /home/pi/AIgriculture/main.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now aigriculture
+```
 
 ---
 
@@ -88,6 +132,7 @@ After `cp .env.example .env`, open `.env` and fill in your own:
 |-----------|-------------|-----------------|
 | `ADMIN_USER` | The dashboard username you want | (you choose) |
 | `ADMIN_PASS` | A strong password | (you choose) — if left blank, a random one prints on first boot |
+| `DB_USER` / `DB_PASS` / `DB_NAME` | MariaDB / MySQL creds | (your choice — see Database section) |
 | `GROQ_API_KEY` | Your Groq key (recommended, fast & free) | https://console.groq.com |
 | `CEREBRAS_API_KEY` | Your Cerebras key (optional) | https://cloud.cerebras.ai |
 | `MISTRAL_API_KEY` | Your Mistral key (optional) | https://console.mistral.ai |
@@ -96,6 +141,7 @@ After `cp .env.example .env`, open `.env` and fill in your own:
 Set **any one** AI provider and FLORA gets full tool-using chat. Leave them all empty and FLORA still works offline with keyword routing.
 
 For **email alerts** (FarmMonitor disease notifications, FLORA reports):
+
 ```bash
 cp config.example.yaml config.yaml      # then edit config.yaml
 ```
@@ -121,7 +167,7 @@ notifications:
 
 ## 🔌 Wiring (change one file to match your board)
 
-Default pin map (matches what `plantwatch.py` ships with):
+Default pin map (matches what `main.py` ships with):
 
 | Component | Default BCM pins |
 |-----------|------------------|
@@ -135,11 +181,23 @@ Default pin map (matches what `plantwatch.py` ships with):
 
 ```bash
 cp wiring.example.yaml wiring.yaml      # then edit wiring.yaml
-# For Docker, also uncomment the wiring.yaml volume in docker-compose.yml.
-docker compose up -d --force-recreate
+python main.py                          # picks up wiring.yaml on startup
 ```
 
 `wiring.yaml` lets you remap any pin, flip active-high/active-low, change buzzer count or frequency, and recalibrate moisture sensors — all without touching code.
+
+---
+
+## ➕ Add more sensors at runtime
+
+The dashboard has a **"+ Add sensors"** button (top-right of the overview tab, admin-only). Click it and the app:
+
+1. Scans the I²C bus across all 4 ADS1115 addresses (`0x48`-`0x4B`) × 4 channels each.
+2. Finds channels with a plausible moisture reading that aren't already in use.
+3. Registers them as new plants (letters `i`-`p`, up to 16 total) and persists them to `.plants.json`.
+4. Starts polling them immediately — no restart, no code edits.
+
+Useful when you start with the 2-sensor testing build and expand later.
 
 ---
 
@@ -213,27 +271,24 @@ All captured frames, farm scans, and security snapshots are browsable from the d
 ## Camera options
 
 ```bash
-# Raspberry Pi CSI camera (set via --input on the command line)
-python plantwatch.py --input csi:0
+# Raspberry Pi CSI camera
+python main.py --input csi:0
 
 # USB camera
-python plantwatch.py --input /dev/video0
+python main.py --input /dev/video0
 
 # Network / RTSP camera
-python plantwatch.py --input rtsp://user:pass@192.168.1.10/live
+python main.py --input rtsp://user:pass@192.168.1.10/live
 ```
-
-In Docker, uncomment the relevant `command:` line in `docker-compose.yml`.
 
 ---
 
 ## 🧠 Plug in your own ML models
 
 The disease and ripeness detectors are just **Ultralytics YOLO `.pt` files**.
-Train them on your own crop, drop them into a `models/` folder beside `plantwatch.py`, and the app picks them up — done.
+Train them on your own crop, drop them into a `models/` folder beside `main.py`, and the app picks them up — done.
 
 ```bash
-# The defaults live under farmmonitor working directory.
 # Replace these with your own .pt weights and FarmMonitor uses them on the next scan:
 cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
 cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
@@ -245,19 +300,22 @@ The bundled strawberry models are a starting point, not a hard requirement.
 
 ---
 
-## Hailo (optional)
+## Hailo (optional accelerator)
+
+The default CPU path works on every Pi 4 / 5. If you have a **Hailo-10H AI HAT**, install HailoRT and Hailo Apps on the host first, then add the Hailo flags:
 
 ```bash
-# Install HailoRT SDK on the host first, then run with the Hailo input flags:
-python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
+python main.py --input /dev/video0 --arch hailo10h --use-frame
 ```
+
+If Hailo isn't installed, `main.py` logs `Hailo accelerator not detected — running on CPU YOLO (the default mode)` and continues normally — **the security camera and FarmMonitor still work**.
 
 ---
 
 ## CLI reference
 
 ```
-python plantwatch.py [options]
+python main.py [options]
 
   --input             camera input (csi:N | /dev/videoN | rtsp://... | path)
   --arch              hailo10h | cpu (default: cpu)
@@ -274,8 +332,8 @@ variables — see `.env.example`.
 
 ```
 AIgriculture/
-├── plantwatch.py                       # main app: dashboard + sensors + irrigation
-├── dashboard_sample.html               # the dashboard (single-page app)
+├── main.py                             # main app: dashboard + sensors + irrigation
+├── dashboard.html                      # the dashboard (single-page app)
 ├── login.html                          # login screen
 ├── farm_monitor_designer_email.py      # branded alert email composer
 ├── farm_monitor_pt_scan.py             # disease + ripeness .pt scanner
@@ -285,11 +343,10 @@ AIgriculture/
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # LoRa bridge
 ├── docs/assets/                        # images used in this README
+├── docs/{ja,hi,ru,zh}/README.md        # translated READMEs
 ├── .env.example                        # ← copy to .env and edit
 ├── config.example.yaml                 # ← copy to config.yaml and edit (for email)
 ├── wiring.example.yaml                 # ← copy to wiring.yaml and edit (for custom pins)
-├── docker-compose.yml
-├── Dockerfile
 └── requirements.txt
 ```
 

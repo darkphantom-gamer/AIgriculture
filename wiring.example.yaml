@@ -1,13 +1,13 @@
 # AIgriculture · wiring overrides (OPTIONAL)
 # -------------------------------------------
 # Copy this file to `wiring.yaml` to override the hardware pins / I2C
-# addresses without editing plantwatch.py.
+# addresses without editing main.py.
 #
 #   cp wiring.example.yaml wiring.yaml
 #
 # `wiring.yaml` is git-ignored so your map stays on your Pi.
-# Any section you leave out falls back to the same default values that
-# plantwatch.py has used for years (so the file is entirely optional).
+# Any section you leave out falls back to the built-in defaults in main.py
+# (so the file is entirely optional).
 
 relays:
   # Active-LOW relay boards (most common HW-484 / SongLe modules) → LOW = ON.

@@ -31,7 +31,7 @@ jobs:
         run: |
           python - <<'PY'
           import sys, types
-          # Stub heavy / hardware-only modules so plantwatch.py imports cleanly in CI.
+          # Stub heavy / hardware-only modules so main.py imports cleanly in CI.
           for name in [
             "lgpio", "smbus2", "picamera2", "cv2", "numpy", "ultralytics",
             "openai", "meshtastic", "meshtastic.tcp_interface", "pubsub",
@@ -50,28 +50,12 @@ jobs:
           ]:
             sys.modules.setdefault(name, types.ModuleType(name))
           import ast
-          src = open('plantwatch.py').read()
+          src = open('main.py').read()
           ast.parse(src)
-          print(f"OK - plantwatch.py parses ({src.count(chr(10))+1} lines)")
+          print(f"OK - main.py parses ({src.count(chr(10))+1} lines)")
           for f in ["farm_monitor_designer_email.py","flora_agent.py","flora_config.py",
                     "flora_report.py","flora_scheduler.py","flora_tools.py",
                     "meshtastic_flora_bridge.py","farm_monitor_pt_scan.py"]:
               ast.parse(open(f).read())
               print(f"OK - {f} parses")
           PY
-
-  docker-build:
-    name: Docker image build (no push)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build image (cached layers only)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: aigriculture:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

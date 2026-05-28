@@ -664,7 +664,7 @@ function renderOverview(){
   document.getElementById('auto-sw').checked=state.auto_irr;
 }
 
-let currentUser={username:'FarmAdmin',display_name:'Farm Admin',role:'admin',avatar_url:'/img/farmer.png',permissions:{control:true}};
+let currentUser={username:'',display_name:'',role:'admin',avatar_url:'/img/farmer.png',permissions:{control:true}};
 function isViewer(){return currentUser&&currentUser.role==='viewer';}
 function requireAdminControl(label){if(isViewer()){showToast('View-only demo account · Admin login required for '+label);return false;}return true;}
 function setTextAll(selector,text){document.querySelectorAll(selector).forEach(el=>{el.textContent=text;});}

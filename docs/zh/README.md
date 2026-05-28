@@ -14,7 +14,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ed)](https://docs.docker.com/)
 
 </div>
 
@@ -64,7 +63,7 @@
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
 cp .env.example .env            # 然后编辑 .env（见下一节）
-docker compose up -d
+python main.py
 ```
 
 打开 `http://<pi-ip>:8000`。
@@ -74,7 +73,7 @@ docker compose up -d
 > **想要原生安装？**
 > ```bash
 > pip install -r requirements.txt --break-system-packages
-> python plantwatch.py
+> python main.py
 > ```
 
 ---
@@ -121,7 +120,7 @@ notifications:
 
 ## 🔌 接线（改一个文件即可适配你的板子）
 
-默认引脚映射（`plantwatch.py` 出厂值）：
+默认引脚映射（`main.py` 出厂值）：
 
 | 部件 | 默认 BCM 引脚 |
 |------|----------------|
@@ -135,8 +134,7 @@ notifications:
 
 ```bash
 cp wiring.example.yaml wiring.yaml      # 然后编辑 wiring.yaml
-# Docker 还需在 docker-compose.yml 中取消 wiring.yaml 卷的注释。
-docker compose up -d --force-recreate
+python main.py
 ```
 
 通过 `wiring.yaml` 可以重映射任意引脚、切换 active-high/low、修改蜂鸣器数量和频率、重新校准湿度传感器 — 全程不动代码。
@@ -214,23 +212,22 @@ FLORA 能理解自然语言命令：
 
 ```bash
 # Raspberry Pi CSI 摄像头（通过 --input 指定）
-python plantwatch.py --input csi:0
+python main.py --input csi:0
 
 # USB 摄像头
-python plantwatch.py --input /dev/video0
+python main.py --input /dev/video0
 
 # 网络 / RTSP 摄像头
-python plantwatch.py --input rtsp://user:pass@192.168.1.10/live
+python main.py --input rtsp://user:pass@192.168.1.10/live
 ```
 
-Docker 中请在 `docker-compose.yml` 中取消对应 `command:` 行的注释。
 
 ---
 
 ## 🧠 接入你自己的 ML 模型
 
 病害和成熟度检测器就是 **Ultralytics YOLO 的 `.pt` 文件**。
-用自己的作物训练后，放到 `plantwatch.py` 旁边的 `models/` 文件夹，应用会自动捡起。
+用自己的作物训练后，放到 `main.py` 旁边的 `models/` 文件夹，应用会自动捡起。
 
 ```bash
 # 默认权重在 FarmMonitor 的工作目录。
@@ -249,7 +246,7 @@ cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
 
 ```bash
 # 先在主机上安装 HailoRT SDK，然后用 Hailo 输入参数启动：
-python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
+python main.py --input /dev/video0 --arch hailo10h --use-frame
 ```
 
 ---
@@ -257,7 +254,7 @@ python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
 ## CLI 参考
 
 ```
-python plantwatch.py [options]
+python main.py [options]
 
   --input             摄像头输入（csi:N | /dev/videoN | rtsp://... | path）
   --arch              hailo10h | cpu（默认：cpu）
@@ -273,8 +270,8 @@ python plantwatch.py [options]
 
 ```
 AIgriculture/
-├── plantwatch.py                       # 主应用：仪表盘 + 传感器 + 灌溉
-├── dashboard_sample.html               # 仪表盘（单页应用）
+├── main.py                       # 主应用：仪表盘 + 传感器 + 灌溉
+├── dashboard.html               # 仪表盘（单页应用）
 ├── login.html                          # 登录页
 ├── farm_monitor_designer_email.py      # 告警邮件模板
 ├── farm_monitor_pt_scan.py             # 病害 + 成熟度 .pt 扫描器
@@ -287,8 +284,6 @@ AIgriculture/
 ├── .env.example                        # ← 复制为 .env 并编辑
 ├── config.example.yaml                 # ← 复制为 config.yaml（用于邮件）
 ├── wiring.example.yaml                 # ← 复制为 wiring.yaml（用于自定义引脚）
-├── docker-compose.yml
-├── Dockerfile
 └── requirements.txt
 ```
 

@@ -1,15 +1,9 @@
-"""
-FLORA Intelligence — real-hardware farm tools.
+"""FLORA tool layer — exposes farm state and actions to the AI assistant.
 
-Every tool reads/writes the LIVE plantwatch shared state, injected once at
-startup through init_shared_state(). This module imports nothing from
-plantwatch, so there is no circular-import risk.
-
-Pump tools mirror the exact behaviour of plantwatch's /api/pump route:
-they drive the relay through the injected set_relay() callable and update
-pump_states / burst_state / manual_pumps under pump_lock — identical to the
-dashboard's water button. The burst state machine, the 70% hardlock and the
-sensor-offline guard in sensor_irr_loop are never bypassed.
+State is shared by reference from main.py via init_shared_state(), so this
+module does not import main and there is no circular dependency. Pump tools
+go through the same lock + burst state machine + 70% hardlock as the
+dashboard's water button — FLORA can never bypass those guards.
 """
 import json
 import time
@@ -17,14 +11,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 # ── Shared-state bridge ─────────────────────────────────────────────────────────
-# Populated once by plantwatch.py at startup. Keys are documented in
+# Populated once by main.py at startup. Keys are documented in
 # init_shared_state(). Dicts/lists are passed by reference (live), scalars that
 # change at runtime (auto_enabled, at_farm) are reached via getter/setter calls.
 _B: dict = {}
 
 
 def init_shared_state(bridge: dict) -> None:
-    """Inject live plantwatch state. Called once, before any client connects."""
+    """Inject live shared state from main.py. Called once before clients connect."""
     _B.clear()
     _B.update(bridge)
 

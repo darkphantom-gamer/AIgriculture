@@ -14,7 +14,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ed)](https://docs.docker.com/)
 
 </div>
 
@@ -64,7 +63,7 @@
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
 cp .env.example .env            # फिर .env एडिट करें (अगला सेक्शन देखें)
-docker compose up -d
+python main.py
 ```
 
 ब्राउज़र में `http://<pi-ip>:8000` खोलें।
@@ -74,7 +73,7 @@ docker compose up -d
 > **नेटिव इंस्टॉल चाहिए?**
 > ```bash
 > pip install -r requirements.txt --break-system-packages
-> python plantwatch.py
+> python main.py
 > ```
 
 ---
@@ -121,7 +120,7 @@ notifications:
 
 ## 🔌 वायरिंग (एक फ़ाइल बदल कर अपना बोर्ड फिट करें)
 
-डिफ़ॉल्ट पिन मैप (`plantwatch.py` के साथ आता है):
+डिफ़ॉल्ट पिन मैप (`main.py` के साथ आता है):
 
 | कंपोनेंट | डिफ़ॉल्ट BCM पिन |
 |---------|------------------|
@@ -135,8 +134,7 @@ notifications:
 
 ```bash
 cp wiring.example.yaml wiring.yaml      # फिर wiring.yaml एडिट करें
-# Docker के लिए docker-compose.yml में wiring.yaml वॉल्यूम भी अनकमेंट करें।
-docker compose up -d --force-recreate
+python main.py
 ```
 
 `wiring.yaml` से कोई भी पिन, active-high/low, बज़र की संख्या या फ्रीक्वेंसी, और नमी कैलिब्रेशन बिना कोड छुए बदलें।
@@ -214,23 +212,22 @@ FLORA साधारण भाषा के आदेश समझती है
 
 ```bash
 # Raspberry Pi CSI कैमरा (--input से)
-python plantwatch.py --input csi:0
+python main.py --input csi:0
 
 # USB कैमरा
-python plantwatch.py --input /dev/video0
+python main.py --input /dev/video0
 
 # नेटवर्क / RTSP कैमरा
-python plantwatch.py --input rtsp://user:pass@192.168.1.10/live
+python main.py --input rtsp://user:pass@192.168.1.10/live
 ```
 
-Docker में `docker-compose.yml` की संबंधित `command:` लाइन अनकमेंट करें।
 
 ---
 
 ## 🧠 अपना ML मॉडल लगाएं
 
 रोग और पकने डिटेक्टर बस **Ultralytics YOLO `.pt` फ़ाइलें** हैं।
-अपनी फ़सल पर ट्रेन करें, `plantwatch.py` के पास `models/` फ़ोल्डर में डालें — हो गया।
+अपनी फ़सल पर ट्रेन करें, `main.py` के पास `models/` फ़ोल्डर में डालें — हो गया।
 
 ```bash
 # डिफ़ॉल्ट फ़ाइलें FarmMonitor की working directory में हैं।
@@ -249,7 +246,7 @@ cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
 
 ```bash
 # पहले HailoRT SDK इंस्टॉल करें, फिर Hailo फ्लैग्स के साथ चलाएं:
-python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
+python main.py --input /dev/video0 --arch hailo10h --use-frame
 ```
 
 ---
@@ -257,7 +254,7 @@ python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
 ## CLI रिफरेंस
 
 ```
-python plantwatch.py [options]
+python main.py [options]
 
   --input             कैमरा इनपुट (csi:N | /dev/videoN | rtsp://... | path)
   --arch              hailo10h | cpu (डिफ़ॉल्ट: cpu)
@@ -273,8 +270,8 @@ python plantwatch.py [options]
 
 ```
 AIgriculture/
-├── plantwatch.py                       # मुख्य ऐप: डैशबोर्ड + सेंसर + सिंचाई
-├── dashboard_sample.html               # डैशबोर्ड (सिंगल-पेज ऐप)
+├── main.py                       # मुख्य ऐप: डैशबोर्ड + सेंसर + सिंचाई
+├── dashboard.html               # डैशबोर्ड (सिंगल-पेज ऐप)
 ├── login.html                          # लॉगिन स्क्रीन
 ├── farm_monitor_designer_email.py      # ब्रांडेड अलर्ट ईमेल टेम्पलेट
 ├── farm_monitor_pt_scan.py             # रोग + पकने .pt स्कैनर
@@ -287,8 +284,6 @@ AIgriculture/
 ├── .env.example                        # ← .env में कॉपी करके एडिट
 ├── config.example.yaml                 # ← config.yaml में कॉपी (ईमेल के लिए)
 ├── wiring.example.yaml                 # ← wiring.yaml में कॉपी (कस्टम पिन)
-├── docker-compose.yml
-├── Dockerfile
 └── requirements.txt
 ```
 
