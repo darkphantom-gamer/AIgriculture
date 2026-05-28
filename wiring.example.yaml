@@ -1,0 +1,78 @@
+# ────────────────────────────────────────────────────────────────────────────
+#  AIgriculture — HARDWARE WIRING MAP
+#  Edit this file (NOT the Python source) to match your board.
+#
+#  Use:    cp wiring.example.yaml wiring.yaml
+#          # then edit wiring.yaml
+#
+#  Everything below uses BCM pin numbering (i.e. `BCM 17` = physical pin 11).
+#  Defaults match the reference build in aigriculture.txt.
+#  Anything you leave out keeps its default value.
+# ────────────────────────────────────────────────────────────────────────────
+
+# ── GPIO chip ──────────────────────────────────────────────────────────────
+gpio:
+  # Most Pis expose /dev/gpiochip0. Some Pi 5 setups expose /dev/gpiochip4 instead.
+  # If you see "[WARN] relays unavailable: GPIO busy/no such device", try 4.
+  chip: 0
+
+# ── Water-pump relays ──────────────────────────────────────────────────────
+relays:
+  # Cheap blue 8-channel relay boards are ACTIVE-LOW (LOW = pump ON).
+  # Solid-state / opto-isolated boards may be active-high — set false then.
+  active_low: true
+
+  # Plant letter -> BCM pin driving that plant's pump relay.
+  pins:
+    a: 17
+    b: 27
+    c: 22
+    d: 23
+    e: 5
+    f: 6
+    g: 13
+    h: 19
+
+# ── Intruder siren (passive piezo buzzers, PWM tone) ───────────────────────
+buzzers:
+  # PWM-capable BCM pins. Add or remove pins to use one buzzer or more than two.
+  pins: [18, 12]
+  freq_hz: 2700      # tone frequency
+  on_s:    0.25      # beep on duration (seconds)
+  off_s:   0.20      # beep off duration (seconds)
+
+# ── Soil-moisture ADCs (ADS1115 over I2C) ──────────────────────────────────
+moisture:
+  bus: 1             # /dev/i2c-1 (Raspberry Pi default I2C bus)
+
+  # Raw ADS1115 counts. CALIBRATE for your soil & sensors:
+  #   1. Hold each sensor in dry air, note the reading -> dry_value
+  #   2. Put each sensor in water, note the reading    -> wet_value
+  # Values below are a reasonable starting point for capacitive sensors.
+  dry_value: 17408
+  wet_value: 7569
+
+  # Plant letter -> [ADC address, channel 0..3].
+  # Two ADS1115 boards at 0x48 and 0x49 cover the reference 8 plants.
+  # Want more sensors? You can chain up to FOUR ADS1115s on the same I2C bus
+  # (the chip has 4 addresses: 0x48 / 0x49 / 0x4A / 0x4B) and add letters i..p.
+  # Or — easier — leave this section as-is and use the dashboard's
+  # "+ Add sensors" button at runtime; it auto-detects new channels.
+  channels:
+    a: [0x48, 0]
+    b: [0x48, 1]
+    c: [0x48, 2]
+    d: [0x48, 3]
+    e: [0x49, 0]
+    f: [0x49, 1]
+    g: [0x49, 2]
+    h: [0x49, 3]
+    # Uncomment as you wire more sensors:
+    # i: [0x4A, 0]
+    # j: [0x4A, 1]
+    # k: [0x4A, 2]
+    # l: [0x4A, 3]
+    # m: [0x4B, 0]
+    # n: [0x4B, 1]
+    # o: [0x4B, 2]
+    # p: [0x4B, 3]

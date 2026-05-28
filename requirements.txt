@@ -1,0 +1,28 @@
+# AIgriculture — default (NON-Hailo) dependencies. Runs on a plain Raspberry Pi.
+# Install:  pip install -r requirements.txt
+
+# ── Web dashboard / API ────────────────────────────────────────────────────
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+PyJWT>=2.8
+bcrypt>=4.1
+PyYAML>=6.0
+
+# ── Vision (CPU) ───────────────────────────────────────────────────────────
+opencv-python>=4.9
+numpy>=1.26
+Pillow>=10.2
+ultralytics>=8.1            # YOLO on CPU (pulls torch); the default detector
+
+# ── FLORA AI assistant ─────────────────────────────────────────────────────
+openai>=1.14               # OpenAI-compatible client for Groq/Cerebras/Mistral/Gemini
+APScheduler>=3.10          # natural-language task scheduler
+reportlab>=4.1             # 48-hour PDF farm report
+
+# ── Comms (optional features) ──────────────────────────────────────────────
+meshtastic>=2.3            # LoRa bridge (only needed if MESH_ENABLED=true)
+
+# ── Raspberry Pi hardware (no-ops off-Pi; imports are guarded in code) ───────
+lgpio>=0.2                 # relays + buzzers
+smbus2>=0.4                # ADS1115 moisture ADC over I2C

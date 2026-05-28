@@ -1,0 +1,59 @@
+# ─── Secrets & credentials (NEVER commit) ────────────────────────────────
+.env
+*.env
+!.env.example
+.flora.env
+.jwt_secret
+*.key
+*.pem
+config.yaml
+config.yml
+wiring.yaml
+secrets/
+*credentials*
+*secret*
+!*.example*
+
+# ─── Runtime data, databases, captured media ─────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+Storage_Data/
+FarmMonitor_Work/
+quarantined_storage_events/
+captures/
+runtime/
+*.avi
+*.mp4
+.flora_chat_history.json
+.flora_schedule.json
+
+# ─── Logs ────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# ─── Editors / OS ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~
+
+# ─── Backups ─────────────────────────────────────────────────────────────
+*.bak
+*.bak_*
+backups/
+Project-backup/

@@ -1,0 +1,41 @@
+services:
+  aigriculture:
+    build: .
+    image: aigriculture:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persistent database + JWT secret
+      - ./runtime:/app/runtime
+      # Optional: edit your wiring (BCM pins, I2C, sensor calibration).
+      # 1) cp wiring.example.yaml wiring.yaml
+      # 2) edit wiring.yaml
+      # 3) uncomment the next line and `docker compose up -d --force-recreate`
+      # - ./wiring.yaml:/app/wiring.yaml:ro
+      # Optional: mount your own config.yaml (copy config.example.yaml first)
+      # - ./config.yaml:/app/config.yaml:ro
+      # Optional: override bundled models with your own
+      # - ./models:/app/models:ro
+
+    # ── Hardware pass-through (uncomment what you have) ──────────────────────
+    # USB camera:
+    # devices:
+    #   - /dev/video0:/dev/video0
+    #   - /dev/video1:/dev/video1
+    #
+    # GPIO relays + buzzers (Raspberry Pi only):
+    # devices:
+    #   - /dev/gpiochip0:/dev/gpiochip0
+    #
+    # I2C moisture sensors (Raspberry Pi only):
+    # devices:
+    #   - /dev/i2c-1:/dev/i2c-1
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Cameras are opt-in. Uncomment ONE of these lines (or pick your own):
+    # command: ["python", "-m", "aigriculture", "--security-camera", "csi:0", "--farm-camera", "csi:1"]
+    # command: ["python", "-m", "aigriculture", "--security-camera", "/dev/video0"]
+    # command: ["python", "-m", "aigriculture", "--security-camera", "rtsp://user:pass@192.168.1.10/live"]

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIgriculture — Control Panel</title>
+<style>
+  :root {
+    --bg:#0c1310; --panel:#14201a; --panel2:#101a15; --line:#26372d;
+    --green:#36c47a; --green-dim:#1f7a4d; --text:#e7efea; --muted:#8aa496;
+    --amber:#ffb443; --red:#ff6b6b; --radius:14px;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  a { color:var(--green); }
+  header { display:flex; align-items:center; gap:16px; padding:14px 22px;
+    background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
+  .brand { font-weight:700; font-size:1.15rem; }
+  .brand span { color:var(--green); }
+  header .spacer { flex:1; }
+  .who { color:var(--muted); font-size:.85rem; }
+  .btn { border:1px solid var(--line); background:var(--panel2); color:var(--text);
+    padding:8px 14px; border-radius:9px; cursor:pointer; font-size:.85rem; }
+  .btn:hover { border-color:var(--green); }
+  .btn.primary { background:var(--green); color:#04140c; border:0; font-weight:700; }
+  .btn.warn { border-color:var(--amber); color:var(--amber); }
+  .btn.danger { border-color:var(--red); color:var(--red); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  nav { display:flex; gap:4px; padding:10px 22px 0; background:var(--panel); border-bottom:1px solid var(--line); }
+  nav button { background:none; border:0; color:var(--muted); padding:10px 16px; cursor:pointer;
+    font-size:.9rem; border-bottom:2px solid transparent; }
+  nav button.active { color:var(--text); border-bottom-color:var(--green); }
+  main { padding:22px; max-width:1100px; margin:0 auto; }
+  .tab { display:none; } .tab.active { display:block; }
+  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px; }
+  .card h3 { margin:0 0 4px; font-size:1rem; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .moist-bar { height:10px; background:#0e1714; border-radius:6px; overflow:hidden; margin:12px 0 6px; }
+  .moist-fill { height:100%; background:linear-gradient(90deg,var(--green-dim),var(--green)); width:0%; transition:width .5s; }
+  .moist-val { font-size:1.6rem; font-weight:700; }
+  .tag { font-size:.72rem; padding:3px 8px; border-radius:20px; background:#0e1714; color:var(--muted); }
+  .tag.on { background:rgba(54,196,122,.16); color:var(--green); }
+  .tag.off { background:rgba(255,107,107,.14); color:var(--red); }
+  .banner { background:rgba(255,107,107,.12); border:1px solid var(--red); color:#ffd0d0;
+    padding:12px 16px; border-radius:11px; margin-bottom:18px; display:none; }
+  .banner.show { display:block; }
+  .toolbar { display:flex; gap:12px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+  .cams { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .cam img { width:100%; border-radius:10px; background:#000; aspect-ratio:4/3; object-fit:cover; }
+  .chat { display:flex; flex-direction:column; height:62vh; }
+  .messages { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:6px; }
+  .msg { padding:10px 14px; border-radius:12px; max-width:80%; white-space:pre-wrap; line-height:1.4; }
+  .msg.user { align-self:flex-end; background:var(--green); color:#04140c; }
+  .msg.flora { align-self:flex-start; background:var(--panel2); border:1px solid var(--line); }
+  .composer { display:flex; gap:10px; margin-top:12px; }
+  .composer input { flex:1; padding:12px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:10px; color:var(--text); }
+  .ev { display:flex; gap:14px; padding:12px 0; border-bottom:1px solid var(--line); }
+  .ev img { width:84px; height:64px; object-fit:cover; border-radius:8px; background:#000; }
+  .field { margin:14px 0; } .field label { display:block; color:var(--muted); font-size:.8rem; margin-bottom:6px; }
+  .field input { width:100%; max-width:360px; padding:10px; background:var(--panel2);
+    border:1px solid var(--line); border-radius:9px; color:var(--text); }
+  .muted { color:var(--muted); font-size:.85rem; }
+  .switch { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">🌱 AI<span>griculture</span></div>
+  <div class="spacer"></div>
+  <button class="btn" id="guardBtn" data-admin>Guard: …</button>
+  <span class="who" id="who">…</span>
+  <button class="btn" onclick="logout()">Logout</button>
+</header>
+<nav>
+  <button class="active" data-tab="overview">Overview</button>
+  <button data-tab="cameras">Cameras</button>
+  <button data-tab="flora">FLORA</button>
+  <button data-tab="events">Events</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+<main>
+  <div class="banner" id="banner"></div>
+
+  <section class="tab active" id="overview">
+    <div class="toolbar">
+      <label class="switch" data-admin><input type="checkbox" id="autoTog"> Auto-irrigation</label>
+      <button class="btn" id="addSensorBtn" data-admin>+ Add sensors</button>
+      <span class="muted" id="connDot">● connecting…</span>
+    </div>
+    <div class="grid" id="plants"></div>
+  </section>
+
+  <section class="tab" id="cameras">
+    <div class="toolbar">
+      <button class="btn primary" id="scanBtn" data-admin>Scan plants now</button>
+      <span class="muted" id="fmStatus"></span>
+    </div>
+    <div class="cams">
+      <div class="card cam"><h3>Security camera</h3><img id="secCam" alt="security feed"></div>
+      <div class="card cam"><h3>FarmMonitor camera</h3><img id="farmCam" alt="farm feed"></div>
+    </div>
+  </section>
+
+  <section class="tab" id="flora">
+    <div class="card chat">
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <input id="floraInput" placeholder="Ask FLORA about your farm…" autocomplete="off">
+        <button class="btn primary" onclick="sendFlora()">Send</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" id="events">
+    <div class="card"><h3>Recent events</h3><div id="eventsList"><p class="muted">Loading…</p></div></div>
+  </section>
+
+  <section class="tab" id="settings">
+    <div class="card">
+      <h3>Notifications</h3>
+      <div class="field">
+        <label>Alert email address</label>
+        <input id="emailInput" type="email" placeholder="you@example.com">
+      </div>
+      <button class="btn primary" onclick="saveEmail()">Save email</button>
+      <span class="muted" id="emailMsg"></span>
+    </div>
+    <div class="card" style="margin-top:16px" data-admin>
+      <h3>Intruder siren</h3>
+      <div class="toolbar">
+        <label class="switch"><input type="checkbox" id="sirenTog"> Siren enabled</label>
+        <button class="btn" onclick="testBuzzer()">Test beep</button>
+      </div>
+      <p class="muted">The siren sounds only when the guard is armed (Away mode) and an intruder is detected.</p>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+let me = { role: 'viewer', permissions: {} };
+let lastState = {};
+
+// ── tabs ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); $('#' + b.dataset.tab).classList.add('active');
+  if (b.dataset.tab === 'events') loadEvents();
+});
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = '/login'; throw new Error('unauth'); }
+  return r;
+}
+function logout() { fetch('/auth/logout', { method:'POST' }).then(() => location.href = '/login'); }
+
+// ── state rendering ─────────────────────────────────────────────────────────
+function renderPlants(s) {
+  const wrap = $('#plants'); wrap.innerHTML = '';
+  // Show every plant the engine knows about; mark inactive ones quietly.
+  const list = (s.active_plants && s.active_plants.length) ? s.active_plants : (s.all_plants || []);
+  list.forEach(p => {
+    const mv = s.moisture?.[p];
+    const online = s.sensor_status?.[p]?.online;
+    const pumping = s.pumps?.[p];
+    const pct = mv == null ? 0 : mv;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="row"><h3>${s.plant_names?.[p] || 'Plant ' + p.toUpperCase()}</h3>
+        <span class="tag ${pumping ? 'on' : ''}">${pumping ? '💧 watering' : 'idle'}</span></div>
+      <div class="moist-val">${mv == null ? '--' : Math.round(mv) + '%'}</div>
+      <div class="moist-bar"><div class="moist-fill" style="width:${pct}%"></div></div>
+      <div class="row"><span class="tag ${online ? 'on' : 'off'}">${online ? 'sensor ok' : 'offline'}</span>
+        ${me.permissions.irrigation ? `<button class="btn ${pumping ? 'danger' : ''}"
+           onclick="pump('${p}','${pumping ? 'off' : 'on'}')">${pumping ? 'Stop' : 'Water'}</button>` : ''}</div>`;
+    wrap.appendChild(card);
+  });
+}
+function renderState(s) {
+  lastState = s;
+  renderPlants(s);
+  $('#autoTog').checked = !!s.auto_irr;
+  $('#guardBtn').textContent = 'Guard: ' + (s.at_farm ? 'OFF (at farm)' : 'ON (away)');
+  $('#fmStatus').textContent = s.farm_monitor ? (s.farm_monitor.state || '') : '';
+  const alerts = s.alerts || [];
+  const banner = $('#banner');
+  if (alerts.length) { banner.classList.add('show'); banner.textContent = '⚠️ Alert: ' + alerts.map(a => a.name).join(', '); }
+  else banner.classList.remove('show');
+}
+
+// ── controls ────────────────────────────────────────────────────────────────
+async function pump(p, action) { await api(`/api/pump/${p}/${action}`, { method:'POST' }); refresh(); }
+$('#autoTog').onchange = async (e) => {
+  await api('/api/auto_irrigation', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ enabled: e.target.checked }) }); };
+$('#guardBtn').onclick = async () => {
+  await api('/set_presence', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ at_farm: !lastState.at_farm }) }); refresh(); };
+$('#scanBtn').onclick = async () => { await api('/api/farm_monitor/scan_now', { method:'POST' }); };
+
+// ── Add sensors flow ──────────────────────────────────────────────────────
+$('#addSensorBtn')?.addEventListener('click', async () => {
+  const countStr = prompt('How many new moisture sensors do you want to add?\n\n(Plug them into spare ADS1115 channels first, then click OK.)', '1');
+  if (countStr === null) return;
+  const count = parseInt(countStr, 10);
+  if (!Number.isFinite(count) || count <= 0) { alert('Enter a positive number.'); return; }
+  // Optional: ask for relay pins (one BCM number per new plant, comma-separated, blank = no pump)
+  const pinStr = prompt(`Relay BCM pin(s) for the ${count} new plant(s)?\n\nComma-separated (e.g. "26,16,20"), or leave blank for read-only (no pump control).`, '');
+  let relay_pins = [];
+  if (pinStr && pinStr.trim()) {
+    relay_pins = pinStr.split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
+  }
+  try {
+    const r = await fetch('/api/sensors/add', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count, relay_pins }),
+    });
+    const j = await r.json();
+    if (!j.ok) {
+      alert(j.message || j.error || 'Could not add sensors.');
+      return;
+    }
+    const lines = j.added.map(a => `  • Plant ${a.plant.toUpperCase()} → ADS1115 0x${a.addr.toString(16)} ch${a.channel}${a.relay_pin != null ? ` + BCM ${a.relay_pin}` : ' (no pump)'}`);
+    alert(`Added ${j.added.length} sensor(s):\n\n${lines.join('\n')}`);
+    await refresh();
+  } catch (e) {
+    alert('Network error: ' + e);
+  }
+});
+$('#sirenTog').onchange = async (e) => {
+  await api('/api/buzzer', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ enabled: e.target.checked }) }); };
+function testBuzzer() { api('/api/buzzer/test', { method:'POST' }); }
+
+// ── FLORA chat ───────────────────────────────────────────────────────────────
+function addMsg(text, cls) {
+  const m = document.createElement('div'); m.className = 'msg ' + cls; m.textContent = text;
+  $('#messages').appendChild(m); $('#messages').scrollTop = 1e9;
+}
+async function sendFlora() {
+  const inp = $('#floraInput'), text = inp.value.trim(); if (!text) return;
+  addMsg(text, 'user'); inp.value = '';
+  const typing = document.createElement('div'); typing.className = 'msg flora'; typing.textContent = '…';
+  $('#messages').appendChild(typing);
+  try {
+    const r = await api('/api/flora/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text }) });
+    const j = await r.json(); typing.textContent = j.reply || '…';
+  } catch { typing.textContent = '(FLORA is unavailable)'; }
+  $('#messages').scrollTop = 1e9;
+}
+$('#floraInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendFlora(); });
+
+// ── events + settings ─────────────────────────────────────────────────────────
+async function loadEvents() {
+  const r = await api('/api/storage'); const { events = [] } = await r.json();
+  const el = $('#eventsList');
+  el.innerHTML = events.length ? '' : '<p class="muted">No events yet.</p>';
+  events.forEach(e => {
+    const row = document.createElement('div'); row.className = 'ev';
+    row.innerHTML = `${e.image ? `<img src="${e.image}">` : ''}
+      <div><strong>${e.label}</strong> <span class="tag">${e.event_type}</span>
+      <div class="muted">${e.time}</div></div>`;
+    el.appendChild(row);
+  });
+}
+async function saveEmail() {
+  const email = $('#emailInput').value.trim();
+  const r = await api('/api/notification_email', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ email }) });
+  const j = await r.json(); $('#emailMsg').textContent = j.ok ? '✓ saved' : (j.error || 'error');
+}
+
+// ── live updates ──────────────────────────────────────────────────────────────
+async function refresh() { const r = await api('/api/state'); renderState(await r.json()); }
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = () => { $('#connDot').textContent = '● live'; $('#connDot').style.color = 'var(--green)'; };
+  ws.onclose = () => { $('#connDot').textContent = '● reconnecting'; $('#connDot').style.color = 'var(--amber)'; setTimeout(connectWS, 3000); };
+  ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'state') renderState(d);
+    else if (d.type === 'alert') { refresh(); if (document.querySelector('nav button.active').dataset.tab === 'events') loadEvents(); }
+  };
+}
+
+async function init() {
+  const r = await api('/api/me'); me = await r.json();
+  $('#who').textContent = `${me.display_name} · ${me.role}`;
+  if (!me.permissions.irrigation) document.querySelectorAll('[data-admin]').forEach(el => el.style.display = 'none');
+  $('#secCam').src = '/stream'; $('#farmCam').src = '/farm_stream';
+  $('#secCam').onerror = () => $('#secCam').replaceWith(Object.assign(document.createElement('p'), { className:'muted', textContent:'No security camera configured.' }));
+  $('#farmCam').onerror = () => $('#farmCam').replaceWith(Object.assign(document.createElement('p'), { className:'muted', textContent:'No FarmMonitor camera configured.' }));
+  try { const er = await api('/api/notification_email'); $('#emailInput').value = (await er.json()).email || ''; } catch {}
+  await refresh();
+  connectWS();
+}
+init();
+</script>
+</body>
+</html>

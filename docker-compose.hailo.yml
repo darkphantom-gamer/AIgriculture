@@ -1,0 +1,21 @@
+# Hailo-8 override — use on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.hailo.yml up -d
+#
+# Prerequisites:
+#   1. Install HailoRT (hailort-driver + hailort package) on the HOST:
+#        https://hailo.ai/developer-zone/documentation/
+#   2. The Hailo PCIe/M.2 device must appear at /dev/hailo0 on the host.
+#   3. The container image needs hailort Python bindings installed.
+#      Build with the Hailo requirements file:
+#        docker build --build-arg EXTRA_REQS=requirements-hailo.txt -t aigriculture:hailo .
+#      (See requirements-hailo.txt for notes on obtaining HailoRT from the Hailo SDK.)
+
+services:
+  aigriculture:
+    image: aigriculture:hailo
+    devices:
+      - /dev/hailo0:/dev/hailo0
+    # Hailo-only flag. Add `--security-camera`, `--farm-camera` and any other
+    # options the same way you would in docker-compose.yml.
+    command: ["python", "-m", "aigriculture", "--backend", "hailo"]

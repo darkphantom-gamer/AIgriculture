@@ -1,0 +1,27 @@
+# AIgriculture — application & email config template.
+# Copy to "config.yaml" and edit:  cp config.example.yaml config.yaml
+# config.yaml is git-ignored so your real settings never get committed.
+
+# ─── Email alerts (optional) ───────────────────────────────────────────────
+# Used for FarmMonitor disease/ripeness alerts and FLORA PDF reports.
+# Any SMTP provider works (Gmail app-password, Hostinger, etc.).
+smtp:
+  host: smtp.example.com
+  port: 587
+  email: you@example.com
+  password: your-smtp-app-password
+  from_email: you@example.com
+
+notifications:
+  to_email: alerts@example.com
+
+# ─── App / camera / scan tuning ────────────────────────────────────────────
+app:
+  dashboard_url: http://localhost:8000
+  conf_thresh: 0.45         # detection confidence threshold (0-1)
+  batch_size: 8             # frames per FarmMonitor scan batch
+  capture_interval_sec: 2   # seconds between captured frames
+  batch_period_sec: 3600    # seconds between scheduled scans
+  blur_threshold: 100       # reject blurry frames below this (Laplacian var)
+  brightness_min: 40        # reject too-dark frames
+  brightness_max: 220       # reject blown-out frames
