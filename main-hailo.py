@@ -1,15 +1,16 @@
-"""AIgriculture main app (CPU build) — dashboard, sensors, irrigation, cameras,
-FLORA, mesh, and CPU YOLO intrusion detection.
+"""AIgriculture main app (Hailo build) — dashboard, sensors, irrigation, cameras,
+FLORA, mesh, and Hailo-accelerated YOLO intrusion detection.
 
-This is the default build. It runs on a stock Raspberry Pi (or any Linux box)
-with no Hailo HAT — the security camera uses Ultralytics YOLOv8n on CPU with
-frame-skip for sane FPS. If you have the Hailo accelerator, use main-hailo.py
-instead for hardware-accelerated detection.
+This is the Hailo-10H build. Use it when you have the Hailo AI HAT plugged
+into the Pi — the security camera runs the HEF model on the accelerator for
+~10× faster inference vs CPU. Without the HAT this script still boots; the
+security camera just stays disabled. If you don't have Hailo, use main.py
+(the CPU build) for the same dashboard with software YOLO.
 
 Hardware pins live in wiring.yaml. Credentials and tunables live in .env and
 config.yaml. See README.md for the full setup walkthrough.
 
-Run:  python main.py
+Run:  python main-hailo.py --security-cam /dev/video0
 """
 
 import os, sys, time, threading, json, struct, asyncio, smtplib, re, hashlib, subprocess, shutil
@@ -35,25 +36,48 @@ SECURITY_HEF_PATH = os.getenv(
 )
 
 
-# ── Vision (CPU) ──────────────────────────────────────────────────────────────
-# CPU build: no Hailo, no GStreamer. OpenCV handles capture + drawing,
-# Ultralytics handles YOLOv8 detection. Both are pure-Python wheels.
+# ── Hailo / GStreamer ──────────────────────────────────────────────────────────
+# Importing the Hailo Python libraries succeeds whenever they are installed in
+# the active venv. That is NOT the same as "the Hailo HAT is plugged in." We
+# probe the actual accelerator below; only if BOTH the libs import AND the chip
+# is detected do we mark HAILO_AVAILABLE = True. In any other case main.py runs
+# on CPU YOLO and the dashboard / sensors / irrigation / FLORA / email / mesh
+# all stay fully functional.
+HAILO_AVAILABLE = False
+_HAILO_REASON = ""
 try:
     import cv2
-except ImportError:
-    cv2 = None  # type: ignore
-    print("[WARN] OpenCV not installed — security camera and farm-monitor preview disabled")
-
-
-class _StdLogger:
-    """Tiny print-based logger. Variable kept named `hailo_logger` so the rest
-    of the file (status banner, info lines, error paths) stays untouched."""
-    def info(self, m):    print(f"[INFO] {m}")
-    def warning(self, m): print(f"[WARN] {m}")
-    def error(self, m):   print(f"[ERR]  {m}")
-
-
-hailo_logger = _StdLogger()
+    import gi
+    gi.require_version("Gst", "1.0")
+    from gi.repository import Gst
+    import hailo
+    import hailo_apps.python.core.gstreamer.gstreamer_app as hailo_gst_app
+    from hailo_apps.python.core.common.hailo_logger import get_logger
+    from hailo_apps.python.core.gstreamer.gstreamer_app import app_callback_class
+    from hailo_apps.python.pipeline_apps.detection.detection_pipeline import GStreamerDetectionApp
+    from hailo_apps.python.core.common.buffer_utils import get_caps_from_pad, get_numpy_from_buffer
+    from hailo_apps.python.core.common.installation_utils import detect_hailo_arch
+    # Force a headless sink before any pipeline is constructed — no local preview.
+    hailo_gst_app.GST_VIDEO_SINK = "fakesink"
+    hailo_logger = get_logger(__name__)
+    # Hailo libs are present. Probe the physical accelerator now, before any
+    # GStreamerDetectionApp is constructed (its __init__ asserts on a missing
+    # HAT and would otherwise crash the whole process).
+    try:
+        _arch = os.getenv("HAILO_ARCH") or detect_hailo_arch()
+        HAILO_AVAILABLE = True
+        print(f"[INFO] Hailo accelerator detected ({_arch}) — using HEF pipeline for security camera")
+    except Exception as _he:
+        _HAILO_REASON = f"libs installed but no accelerator on the bus ({_he})"
+        print(f"[INFO] {_HAILO_REASON} — running on CPU YOLO (the default mode)")
+except Exception as _he:
+    _HAILO_REASON = f"Hailo libraries not installed ({_he})"
+    print(f"[INFO] Hailo accelerator not detected — running on CPU YOLO (the default mode)")
+    class _FakeLogger:
+        def info(self, m):    print(f"[INFO] {m}")
+        def warning(self, m): print(f"[WARN] {m}")
+        def error(self, m):   print(f"[ERR]  {m}")
+    hailo_logger = _FakeLogger()
 
 # ── picamera2 (optional — used with --use-rpicam flag) ────────────────────────
 try:
@@ -1176,200 +1200,134 @@ async def ws_push_task():
             print(f"[WS] push error: {e}")
         await asyncio.sleep(1.0)   # ← push every 1 second
 
-# ── CPU YOLO security camera ───────────────────────────────────────────────────
-# Same logic the Hailo callback runs, just driven by Ultralytics on the CPU.
-# Frame-skip + a class allow-list keep load low even on a Pi 4. Updates the
-# same shared state (active_alerts, latest_jpeg, detect_hist) that the
-# dashboard, /api routes, and FLORA tools all read from — so the UX is
-# identical to the Hailo build.
+# ── Hailo detection callback ───────────────────────────────────────────────────
+if HAILO_AVAILABLE:
+    class FarmCallback(app_callback_class):
+        def __init__(self):
+            super().__init__()
+            self._last_save: dict = {}
+            self._last_jpeg_ts = 0.0
+            self._jpeg_min_interval = max(0.03, 1.0 / max(1.0, STREAM_TARGET_FPS))
 
-def _open_video_source(source: str):
-    """Return an open cv2.VideoCapture for CSI / USB / RTSP / index inputs."""
-    if cv2 is None:
-        return None
-    src = (source or "").strip()
-    if not src:
-        return None
-    if src.lower().startswith("rtsp"):
-        os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
-        return cv2.VideoCapture(src, cv2.CAP_FFMPEG)
-    if src.startswith("/dev/"):
-        return cv2.VideoCapture(src, cv2.CAP_V4L2)
-    if src.lower() in ("rpi", "csi", "csi:0", "csi:1"):
-        # libcamera fronts /dev/video0 on current Pi OS. CSI cameras work as V4L2.
-        idx = 1 if src.lower() == "csi:1" else 0
-        return cv2.VideoCapture(f"/dev/video{idx}", cv2.CAP_V4L2)
-    try:
-        return cv2.VideoCapture(int(src))
-    except ValueError:
-        return cv2.VideoCapture(src)
+        def should_publish_jpeg(self, now: float) -> bool:
+            if now - self._last_jpeg_ts >= self._jpeg_min_interval:
+                self._last_jpeg_ts = now
+                return True
+            return False
 
+    def _frame_from_buffer(element, buffer, user_data):
+        """Extract an RGB frame only when the UI/event path actually needs it."""
+        if not user_data.use_frame:
+            return None
+        pad = element.get_static_pad("src")
+        fmt, w, h = get_caps_from_pad(pad)
+        if not (fmt and w and h):
+            return None
+        return get_numpy_from_buffer(buffer, fmt, w, h)
 
-def cpu_security_camera_loop(source: str):
-    """Capture → infer (frame-skip) → trigger siren + save snapshot + publish
-    MJPEG. Runs in its own thread. Same shared state as the Hailo callback."""
-    global latest_jpeg, frame_seq, active_alerts
+    def app_callback(element, buffer, user_data):
+        global latest_jpeg, frame_seq, active_alerts
 
-    if not source or cv2 is None:
-        hailo_logger.info("Security camera disabled (no source / OpenCV missing)")
-        return
+        if buffer is None:
+            return
 
-    try:
-        from ultralytics import YOLO
-    except Exception as e:
-        hailo_logger.error(f"ultralytics not installed ({e}) — security camera disabled")
-        return
-
-    model_path = os.getenv("SECURITY_MODEL", "yolov8n.pt")
-    try:
-        model = YOLO(model_path)
-    except Exception as e:
-        hailo_logger.error(f"Failed to load YOLO model {model_path!r}: {e}")
-        return
-
-    # Pre-resolve COCO class indices so we only run inference on the labels we
-    # care about — same allow-list the Hailo build uses (FARM_THREATS).
-    try:
-        name_to_idx = {v: int(k) for k, v in model.names.items()}
-    except Exception:
-        name_to_idx = {}
-    allow_class_ids = sorted({name_to_idx[n] for n in FARM_THREATS if n in name_to_idx})
-    hailo_logger.info(
-        f"CPU security camera ready: src={source} model={model_path} "
-        f"classes={[n for n in FARM_THREATS if n in name_to_idx]}"
-    )
-
-    cap = _open_video_source(source)
-    if cap is None or not cap.isOpened():
-        hailo_logger.error(f"Could not open security camera at {source!r}")
-        return
-
-    FRAME_SKIP   = max(1, int(os.getenv("SECURITY_FRAME_SKIP", "5")))
-    INFER_IMGSZ  = max(160, int(os.getenv("SECURITY_IMGSZ", "480")))
-    min_jpeg_dt  = max(0.03, 1.0 / max(1.0, STREAM_TARGET_FPS))
-    last_jpeg_ts = 0.0
-    last_save: dict = {}
-    frame_idx = 0
-    last_boxes: list = []   # carry-over boxes between inferred frames so the
-                            # stream doesn't flicker on skipped frames
-
-    while True:
-        ret, frame_bgr = cap.read()
-        if not ret or frame_bgr is None:
-            time.sleep(0.5)
-            continue
-
-        frame_idx += 1
-        now = time.time()
+        roi  = hailo.get_roi_from_buffer(buffer)
+        dets = roi.get_objects_typed(hailo.HAILO_DETECTION)
 
         with at_farm_lock:
             guard_on = not at_farm
 
-        # ── Guard OFF / camera paused ────────────────────────────────────────
+        # ── Guard OFF: owner at farm ─────────────────────────────────────────
+        now = time.time()
+
         if not guard_on or not security_cam_on:
             if active_alerts:
                 active_alerts = []
-            _set_siren(False)
-            last_boxes = []
-            if now - last_jpeg_ts >= min_jpeg_dt:
-                last_jpeg_ts = now
-                fh, fw = frame_bgr.shape[:2]
-                cv2.rectangle(frame_bgr, (0, fh - 36), (fw, fh), (0, 60, 0), -1)
-                cv2.putText(frame_bgr, "GUARD OFF  |  Owner is at the farm",
+            _set_siren(False)   # owner present / camera off → no siren
+            if user_data.should_publish_jpeg(now):
+                frame = _frame_from_buffer(element, buffer, user_data)
+            else:
+                frame = None
+            if frame is not None:
+                fh, fw = frame.shape[:2]
+                bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                cv2.rectangle(bgr, (0, fh - 36), (fw, fh), (0, 60, 0), -1)
+                cv2.putText(bgr, "GUARD OFF  |  Owner is at the farm",
                             (10, fh - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
                             (100, 255, 100), 2)
-                _, jpeg = cv2.imencode(".jpg", frame_bgr,
-                                       [cv2.IMWRITE_JPEG_QUALITY, STREAM_JPEG_QUALITY])
+                _, jpeg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, STREAM_JPEG_QUALITY])
                 with frame_lock:
                     latest_jpeg = jpeg.tobytes()
                     frame_seq += 1
-            continue
+            return
 
-        # ── Inference (only every Nth frame) ─────────────────────────────────
-        threats: list = []
-        confs:   dict = {}
-        boxes:   list = []
-        ran_inference = False
+        # ── Process detections ───────────────────────────────────────────────
+        threats   = []
+        confs     = {}
+        boxes      = []
 
-        if frame_idx % FRAME_SKIP == 0 and allow_class_ids:
-            ran_inference = True
-            try:
-                results = model.predict(
-                    frame_bgr,
-                    classes=allow_class_ids,
-                    conf=CONF_THRESH,
-                    imgsz=INFER_IMGSZ,
-                    verbose=False,
-                )
-            except Exception as e:
-                hailo_logger.warning(f"YOLO predict failed: {e}")
-                results = []
-            for r in results:
-                if r.boxes is None:
-                    continue
-                for box in r.boxes:
-                    cls = int(box.cls[0])
-                    conf = float(box.conf[0])
-                    label = model.names.get(cls, "")
-                    if label not in FARM_THREATS or conf < CONF_THRESH:
-                        continue
-                    x1, y1, x2, y2 = [int(v) for v in box.xyxy[0]]
-                    threats.append(label)
-                    confs[label] = round(conf * 100)
-                    boxes.append((label, conf, (x1, y1, x2, y2)))
-            last_boxes = boxes
-        else:
-            # Use last detection on skipped frames so MJPEG stream stays in sync
-            for label, conf, xyxy in last_boxes:
-                threats.append(label)
-                confs[label] = max(confs.get(label, 0), round(conf * 100))
-                boxes.append((label, conf, xyxy))
+        for det in dets:
+            label = det.get_label()
+            conf  = det.get_confidence()
+            if label not in FARM_THREATS or conf < CONF_THRESH:
+                continue
+            threats.append(label)
+            confs[label] = round(conf * 100)
+            boxes.append((label, conf, det.get_bbox()))
 
+        # Update shared alert state
         active_alerts = [
             {"name":  lbl,
              "conf":  confs.get(lbl, 0),
              "level": THREAT_LEVEL.get(lbl, "low"),
              "icon":  THREAT_EMOJI.get(lbl, "🐾")}
-            for lbl in set(threats)
+            for lbl in threats
         ]
+        # Synchronized intruder siren — security camera + guard active only.
         _set_siren(bool(threats))
 
-        # Draw boxes
-        for label, conf, (x1, y1, x2, y2) in boxes:
-            col = COLORS.get(label, (0, 255, 0))
-            cv2.rectangle(frame_bgr, (x1, y1), (x2, y2), col, 3)
-            txt = f"{label} {conf:.2f}"
-            (tw, th), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-            cv2.rectangle(frame_bgr, (x1, y1 - th - 10), (x1 + tw + 6, y1), col, -1)
-            cv2.putText(frame_bgr, txt, (x1 + 3, y1 - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+        publish_jpeg = user_data.should_publish_jpeg(now)
+        save_labels = [lbl for lbl in set(threats) if now - user_data._last_save.get(lbl, 0) > 30]
+        frame = _frame_from_buffer(element, buffer, user_data) if (publish_jpeg or save_labels) else None
 
-        # Detection history + event snapshot (rate-limited per label)
-        if ran_inference:
-            for lbl in set(threats):
-                with _hist_lock:
-                    detect_hist.append({"t": now, "label": lbl, "conf": confs.get(lbl, 0)})
-                    if len(detect_hist) > 10000:
-                        detect_hist.pop(0)
-                if now - last_save.get(lbl, 0) > 30:
-                    last_save[lbl] = now
-                    _save_event(lbl, frame_bgr.copy(), confs.get(lbl, 0) / 100.0)
+        if frame is not None and boxes:
+            fh, fw = frame.shape[:2]
+            for label, conf, bbox in boxes:
+                x1 = int(bbox.xmin() * fw); y1 = int(bbox.ymin() * fh)
+                x2 = int(bbox.xmax() * fw); y2 = int(bbox.ymax() * fh)
+                col = COLORS.get(label, (0, 255, 0))
+                cv2.rectangle(frame, (x1, y1), (x2, y2), col, 3)
+                txt = f"{label} {conf:.2f}"
+                (tw, th), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                cv2.rectangle(frame, (x1, y1 - th - 10), (x1 + tw + 6, y1), col, -1)
+                cv2.putText(frame, txt, (x1 + 3, y1 - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
-        # MJPEG publish
-        if now - last_jpeg_ts >= min_jpeg_dt:
-            last_jpeg_ts = now
-            fh, fw = frame_bgr.shape[:2]
+        # Store detection history + save event
+        for lbl in set(threats):
+            with _hist_lock:
+                detect_hist.append({"t": now, "label": lbl, "conf": confs.get(lbl, 0)})
+                if len(detect_hist) > 10000:
+                    detect_hist.pop(0)
+            if lbl in save_labels and frame is not None:
+                user_data._last_save[lbl] = now
+                _save_event(lbl, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
+                            confs.get(lbl, 0) / 100.0)
+
+        # Draw overlay on frame
+        if publish_jpeg and frame is not None:
+            fh, fw = frame.shape[:2]
             if threats:
                 unique = list(set(threats))
-                cv2.rectangle(frame_bgr, (0, 0), (fw, 50), (0, 0, 180), -1)
-                cv2.putText(frame_bgr, f"ALERT: {', '.join(unique).upper()}",
+                cv2.rectangle(frame, (0, 0), (fw, 50), (0, 0, 180), -1)
+                cv2.putText(frame, f"ALERT: {', '.join(unique).upper()}",
                             (10, 36), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
             else:
-                cv2.rectangle(frame_bgr, (0, fh - 32), (fw, fh), (0, 70, 0), -1)
-                cv2.putText(frame_bgr, "Farm Guardian | Clear",
+                cv2.rectangle(frame, (0, fh - 32), (fw, fh), (0, 70, 0), -1)
+                cv2.putText(frame, "Farm Guardian | Clear",
                             (10, fh - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 255, 180), 1)
-            _, jpeg = cv2.imencode(".jpg", frame_bgr,
-                                   [cv2.IMWRITE_JPEG_QUALITY, STREAM_JPEG_QUALITY])
+            bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            _, jpeg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, STREAM_JPEG_QUALITY])
             with frame_lock:
                 latest_jpeg = jpeg.tobytes()
                 frame_seq += 1
@@ -1496,7 +1454,7 @@ def _farm_status_snapshot():
 def farm_monitor_camera_loop():
     """Own the USB Farm Monitor camera for preview and scheduled batch capture."""
     global farm_latest_jpeg, farm_frame_seq, farm_frame_bgr, farm_camera_ok, farm_camera_error, FARM_MONITOR_CAMERA
-    if cv2 is None:
+    if not HAILO_AVAILABLE:
         farm_camera_error = "OpenCV unavailable"
         return
     if not FARM_MONITOR_CAMERA and not USE_RPICAM:
@@ -2560,7 +2518,7 @@ def _health_payload():
         "ok": True,
         "service": "aigriculture",
         "time": datetime.now().isoformat(timespec="seconds"),
-        "hailo_available": False,  # CPU build — see main-hailo.py for the Hailo build
+        "hailo_available": bool(HAILO_AVAILABLE),
         "gpio_available": bool(GPIO_AVAILABLE),
         "i2c_available": bool(I2C_AVAILABLE),
         "storage_ready": STORAGE_PATH.exists() and os.access(STORAGE_PATH, os.W_OK),
@@ -4337,10 +4295,136 @@ def _extract_security_cam_arg():
 
 
 def _ensure_pipeline_perf_defaults(security_source: str = ""):
-    """No-op on the CPU build. Hailo's GStreamerDetectionApp parses argv;
-    we don't, so there are no flags to back-fill here."""
-    return
+    """Apply lightweight defaults unless the operator explicitly provided them."""
+    defaults = {
+        "--width": PIPELINE_DEFAULT_WIDTH,
+        "-W": PIPELINE_DEFAULT_WIDTH,
+        "--height": PIPELINE_DEFAULT_HEIGHT,
+        "-H": PIPELINE_DEFAULT_HEIGHT,
+        "--frame-rate": PIPELINE_DEFAULT_FPS,
+        "-f": PIPELINE_DEFAULT_FPS,
+    }
+    argv = sys.argv[1:]
+    def has_any(*names):
+        return any(a == n or a.startswith(n + "=") for a in argv for n in names)
+    if not has_any("--width", "-W"):
+        sys.argv += ["--width", PIPELINE_DEFAULT_WIDTH]
+    if not has_any("--height", "-H"):
+        sys.argv += ["--height", PIPELINE_DEFAULT_HEIGHT]
+    if not has_any("--frame-rate", "-f"):
+        sys.argv += ["--frame-rate", PIPELINE_DEFAULT_FPS]
+    if security_source and not has_any("--input", "-i"):
+        sys.argv += ["--input", security_source]
+    if SECURITY_HEF_PATH and not has_any("--hef-path", "-n") and Path(SECURITY_HEF_PATH).exists():
+        sys.argv += ["--hef-path", SECURITY_HEF_PATH]
+    if "--enable-watchdog" not in argv:
+        sys.argv.append("--enable-watchdog")
 
+
+def _patch_hailo_picamera_fps():
+    """Throttle Hailo's RPi camera feeder without modifying installed packages."""
+    if not HAILO_AVAILABLE or not hasattr(hailo_gst_app, "picamera_thread"):
+        return
+    if getattr(hailo_gst_app, "_plantwatch_fps_patch", False):
+        return
+    target_fps = max(1, int(float(PIPELINE_DEFAULT_FPS)))
+
+    def _picamera_thread_limited(pipeline, video_width, video_height, video_format, picamera_config=None):
+        appsrc = pipeline.get_by_name("app_source")
+        appsrc.set_property("is-live", True)
+        appsrc.set_property("format", Gst.Format.TIME)
+
+        with hailo_gst_app.Picamera2() as picam2:
+            if picamera_config is None:
+                main_width, main_height = hailo_gst_app.get_camera_resolution(video_width, video_height)
+                main = {"size": (main_width, main_height), "format": "RGB888"}
+                controls = {"FrameRate": target_fps}
+                if main_width == video_width and main_height == video_height:
+                    config = picam2.create_preview_configuration(main=main, controls=controls)
+                    capture_stream = "main"
+                else:
+                    lores = {"size": (video_width, video_height), "format": "RGB888"}
+                    config = picam2.create_preview_configuration(main=main, lores=lores, controls=controls)
+                    capture_stream = "lores"
+            else:
+                config = picamera_config
+                capture_stream = "lores" if "lores" in config else "main"
+
+            picam2.configure(config)
+            stream_config = config.get(capture_stream, config["main"])
+            format_str = "RGB" if stream_config["format"] == "RGB888" else video_format
+            width, height = stream_config["size"]
+            appsrc.set_property(
+                "caps",
+                Gst.Caps.from_string(
+                    f"video/x-raw, format={format_str}, width={width}, height={height}, "
+                    f"framerate={target_fps}/1, pixel-aspect-ratio=1/1"
+                ),
+            )
+            picam2.start()
+            frame_count = 0
+            consecutive_errors = 0
+            flushing_count = 0
+            frame_interval = 1.0 / float(target_fps)
+            hailo_logger.info(f"picamera_process started at {target_fps} FPS")
+
+            while True:
+                tick = time.time()
+                try:
+                    frame_data = picam2.capture_array(capture_stream)
+                    if frame_data is None:
+                        consecutive_errors += 1
+                        if consecutive_errors > 200:
+                            hailo_logger.error("picamera_thread: camera unresponsive, exiting")
+                            break
+                        time.sleep(0.02)
+                        continue
+
+                    frame = cv2.cvtColor(frame_data, cv2.COLOR_BGR2RGB)
+                    buffer = Gst.Buffer.new_wrapped(frame.tobytes())
+                    buffer_duration = Gst.util_uint64_scale_int(1, Gst.SECOND, target_fps)
+                    buffer.pts = frame_count * buffer_duration
+                    buffer.duration = buffer_duration
+                    ret = appsrc.emit("push-buffer", buffer)
+
+                    if ret == Gst.FlowReturn.OK:
+                        consecutive_errors = 0
+                        flushing_count = 0
+                        frame_count += 1
+                        sleep_left = frame_interval - (time.time() - tick)
+                        if sleep_left > 0:
+                            time.sleep(sleep_left)
+                        continue
+
+                    if ret == Gst.FlowReturn.FLUSHING:
+                        if pipeline.get_state(0)[1] == Gst.State.NULL:
+                            hailo_logger.info("picamera_thread: pipeline stopped, exiting")
+                            break
+                        flushing_count += 1
+                        if flushing_count > 600:
+                            hailo_logger.warning("picamera_thread: prolonged flushing, exiting")
+                            break
+                        time.sleep(0.05)
+                        continue
+
+                    consecutive_errors += 1
+                    if consecutive_errors % 60 == 1:
+                        hailo_logger.warning(f"picamera_thread: push-buffer returned {ret}, retrying")
+                    if consecutive_errors > 300:
+                        hailo_logger.error("picamera_thread: too many push failures, exiting")
+                        break
+                    time.sleep(0.02)
+                except Exception as exc:
+                    consecutive_errors += 1
+                    if consecutive_errors % 60 == 1:
+                        hailo_logger.warning(f"picamera_thread: capture error ({exc}), retrying")
+                    if consecutive_errors > 300:
+                        hailo_logger.error("picamera_thread: unrecoverable error, exiting")
+                        break
+                    time.sleep(0.05)
+
+    hailo_gst_app.picamera_thread = _picamera_thread_limited
+    hailo_gst_app._plantwatch_fps_patch = True
 
 def _start_meshtastic_bridge():
     """Start the LoRa <-> FLORA bridge inside this process when MESH_ENABLED=true.
@@ -4360,7 +4444,6 @@ def _start_meshtastic_bridge():
     def _runner():
         try:
             cfg = _mb.build_config()
-            # Default to the local dashboard if MESH_DASHBOARD_URL wasn't set.
             if not cfg.dashboard_url:
                 cfg.dashboard_url = "http://127.0.0.1:8000"
             hailo_logger.info(f"Meshtastic bridge starting → {cfg.meshtastic_host}")
@@ -4378,11 +4461,12 @@ def main():
     security_source = _extract_security_cam_arg()
     _ensure_pipeline_perf_defaults(security_source)
     hailo_logger.info("=" * 58)
-    hailo_logger.info("  AIgriculture — main.py  (CPU build)")
+    hailo_logger.info("  AIgriculture — main-hailo.py  (Hailo-accelerated build)")
     hailo_logger.info(f"  Relays  : BCM {RELAY_PIN_SUMMARY}")
     hailo_logger.info(f"  ADS1115 : {'READY' if I2C_AVAILABLE else 'OFFLINE'}")
     hailo_logger.info(f"  GPIO    : {'OK' if GPIO_AVAILABLE else 'SIMULATED'}")
-    hailo_logger.info(f"  Vision  : CPU YOLO (Ultralytics)")
+    hailo_logger.info(f"  Hailo   : {'OK' if HAILO_AVAILABLE else 'DISABLED (use main.py for the CPU build)'}")
+    hailo_logger.info(f"  SecHEF  : {SECURITY_HEF_PATH if security_source else 'disabled'}")
     hailo_logger.info(f"  FarmCam : {FARM_MONITOR_CAMERA} @ {FARM_MONITOR_FPS:g} FPS")
     hailo_logger.info(f"  SecCam  : {security_source if security_source else 'disabled (use --security-cam /dev/videoX)'}")
     hailo_logger.info(f"  Storage : {STORAGE_PATH}")
@@ -4403,26 +4487,46 @@ def main():
 
     _start_meshtastic_bridge()
 
-    if security_source:
-        threading.Thread(
-            target=cpu_security_camera_loop,
-            args=(security_source,),
-            daemon=True,
-            name="security_camera",
-        ).start()
+    hailo_app = None
+    if HAILO_AVAILABLE and security_source:
+        _patch_hailo_picamera_fps()
+        user_data = FarmCallback()
+        try:
+            hailo_app = GStreamerDetectionApp(app_callback, user_data)
+            user_data.use_frame = True
+            if hasattr(hailo_app, "options_menu"):
+                hailo_app.options_menu.use_frame = False
+            hailo_app.video_sink = "fakesink"
+        except Exception as e:
+            hailo_logger.warning(
+                f"Hailo pipeline construction failed at runtime ({e}); "
+                f"continuing without security camera"
+            )
+            hailo_app = None
+    if hailo_app is not None:
+        try:
+            hailo_app.run()
+        finally:
+            all_relays_off()
+            _buzzer_tone(False)
+            if GPIO_AVAILABLE and _gpio_handle is not None:
+                GPIO.gpiochip_close(_gpio_handle)
     else:
-        hailo_logger.info("Security camera disabled (pass --security-cam /dev/videoX to enable)")
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        all_relays_off()
-        _buzzer_tone(False)
-        if GPIO_AVAILABLE and _gpio_handle is not None:
-            GPIO.gpiochip_close(_gpio_handle)
+        if not HAILO_AVAILABLE:
+            hailo_logger.info("Hailo accelerator not available — security camera disabled. "
+                              "For software YOLO intrusion detection on CPU, run main.py instead.")
+        else:
+            hailo_logger.info("Security camera pipeline disabled; FarmMonitor camera remains active")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            all_relays_off()
+            _buzzer_tone(False)
+            if GPIO_AVAILABLE and _gpio_handle is not None:
+                GPIO.gpiochip_close(_gpio_handle)
 
 
 if __name__ == "__main__":

@@ -50,9 +50,10 @@ jobs:
           ]:
             sys.modules.setdefault(name, types.ModuleType(name))
           import ast
-          src = open('main.py').read()
-          ast.parse(src)
-          print(f"OK - main.py parses ({src.count(chr(10))+1} lines)")
+          for entry in ("main.py", "main-hailo.py"):
+              src = open(entry).read()
+              ast.parse(src)
+              print(f"OK - {entry} parses ({src.count(chr(10))+1} lines)")
           for f in ["farm_monitor_designer_email.py","flora_agent.py","flora_config.py",
                     "flora_report.py","flora_scheduler.py","flora_tools.py",
                     "meshtastic_flora_bridge.py","farm_monitor_pt_scan.py"]:

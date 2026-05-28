@@ -34,7 +34,14 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 | **Meshtastic** | LoRa bridge — FLORA answers any channel or DM from your mesh network |
 | **Dashboard** | Dark-theme single-page app: overview, cameras, AI chat, events log, settings |
 
-The default path runs **entirely on CPU** — no Hailo HAT required. Hailo is a drop-in accelerator if you have one; the app detects it automatically.
+The repo ships **two entry points** — pick the one that matches your hardware:
+
+| Script | When to use | Security camera engine |
+|--------|-------------|------------------------|
+| **`python main.py`** | Default. Runs on any Raspberry Pi (4 / 5) or laptop. | Ultralytics YOLOv8n on CPU with frame-skip — works on any Pi. |
+| **`python main-hailo.py`** | You have the Hailo-10H AI HAT installed. | Hailo HEF pipeline — ~10× faster inference. |
+
+Everything else — dashboard, login, FLORA, FarmMonitor, irrigation, email alerts, storage, Meshtastic — is **identical** between the two. The only difference is which inference engine drives the security camera.
 
 ---
 
@@ -78,13 +85,17 @@ cp .env.example .env                       # then EDIT .env (admin user/pass, AP
 cp config.example.yaml config.yaml         # then EDIT config.yaml (SMTP for email alerts)
 cp wiring.example.yaml wiring.yaml         # ONLY if you changed default pins
 
-# 4) Run
-python main.py
+# 4) Run — pick ONE entry point
+python main.py                              # CPU build (default)
+# python main-hailo.py                      # Hailo build (only if HAT is plugged in)
+
+# Enable security camera with frame-skip CPU YOLO (or HEF on Hailo):
+python main.py --security-cam /dev/video0
 ```
 
 Open `http://<pi-ip>:8000` and log in with the `ADMIN_USER` / `ADMIN_PASS` you set in `.env`.
 
-> **Running on a laptop / non-Pi?** This still works. GPIO and I²C silently no-op when the hardware isn't there — you get the full dashboard, AI chat, and (USB / network) cameras. Skip step 1 entirely; just `pip install -r requirements.txt` and `python main.py`.
+> **Running on a laptop / non-Pi?** Use `main.py` (the CPU build). GPIO and I²C silently no-op when the hardware isn't there — you get the full dashboard, AI chat, and (USB / network) cameras. Skip step 1 entirely; just `pip install -r requirements.txt` and `python main.py`.
 
 ### Database
 
@@ -112,7 +123,7 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/AIgriculture
-ExecStart=/usr/bin/python /home/pi/AIgriculture/main.py
+ExecStart=/usr/bin/python /home/pi/AIgriculture/main.py --security-cam /dev/video0
 Restart=on-failure
 
 [Install]
@@ -185,6 +196,21 @@ python main.py                          # picks up wiring.yaml on startup
 ```
 
 `wiring.yaml` lets you remap any pin, flip active-high/active-low, change buzzer count or frequency, and recalibrate moisture sensors — all without touching code.
+
+---
+
+## 📡 Meshtastic LoRa bridge (in-process)
+
+Both `main.py` and `main-hailo.py` start the Meshtastic ↔ FLORA bridge **in the same process** when `MESH_ENABLED=true` is set in `.env`. No second service to run. The bridge:
+
+- Connects to a local `meshtasticd` over TCP (default `localhost:4403`)
+- Listens on any channel or DM
+- Forwards messages to FLORA via the in-process HTTP API
+- Replies to the sender on the same channel the request arrived on
+
+If the Meshtastic library isn't installed or the connection drops, the bridge logs a warning and main.py keeps running — never blocks the dashboard.
+
+See `.env.example` for the full set of `MESH_*` knobs (allowed nodes, reply mode, channel filter).
 
 ---
 
@@ -302,29 +328,32 @@ The bundled strawberry models are a starting point, not a hard requirement.
 
 ## Hailo (optional accelerator)
 
-The default CPU path works on every Pi 4 / 5. If you have a **Hailo-10H AI HAT**, install HailoRT and Hailo Apps on the host first, then add the Hailo flags:
+The default CPU path (`main.py`) works on every Pi 4 / 5. If you have a **Hailo-10H AI HAT**, install HailoRT and Hailo Apps on the host first, then run the Hailo build:
 
 ```bash
-python main.py --input /dev/video0 --arch hailo10h --use-frame
+python main-hailo.py --security-cam /dev/video0
 ```
 
-If Hailo isn't installed, `main.py` logs `Hailo accelerator not detected — running on CPU YOLO (the default mode)` and continues normally — **the security camera and FarmMonitor still work**.
+`main-hailo.py` shares 100% of the dashboard, login, FLORA, FarmMonitor, irrigation, Meshtastic, storage, and email-alert code with `main.py`. The only difference is that the security-camera inference runs on the Hailo HEF model instead of CPU YOLO — usually ~10× faster.
+
+If the HAT isn't actually plugged in, `main-hailo.py` logs a warning and keeps everything else running. You can switch between the two scripts at any time without touching configs or the database.
 
 ---
 
 ## CLI reference
 
 ```
-python main.py [options]
+python main.py [options]            # CPU build (default)
+python main-hailo.py [options]      # Hailo HAT build
 
-  --input             camera input (csi:N | /dev/videoN | rtsp://... | path)
-  --arch              hailo10h | cpu (default: cpu)
-  --use-frame         use Hailo's per-frame callback (Hailo only)
-  --use-rpicam        use the picamera2 (libcamera) capture path
+  --security-cam SRC  camera for intrusion detection
+                      csi:N | /dev/videoN | rtsp://user:pass@host/path
+  --use-rpicam        use the picamera2 (libcamera) capture path on Pi
 ```
 
-All other options (port, JPEG quality, FPS, security HEF path) are environment
-variables — see `.env.example`.
+Environment knobs (see `.env.example`): `SECURITY_FRAME_SKIP` (default 5),
+`SECURITY_IMGSZ` (default 480), `SECURITY_MODEL` (default `yolov8n.pt`),
+plus port, JPEG quality, FPS, and the Hailo HEF path.
 
 ---
 
@@ -332,7 +361,8 @@ variables — see `.env.example`.
 
 ```
 AIgriculture/
-├── main.py                             # main app: dashboard + sensors + irrigation
+├── main.py                             # CPU build: dashboard + sensors + irrigation + CPU YOLO
+├── main-hailo.py                       # Hailo build: same as main.py + Hailo HEF security cam
 ├── dashboard.html                      # the dashboard (single-page app)
 ├── login.html                          # login screen
 ├── farm_monitor_designer_email.py      # branded alert email composer
