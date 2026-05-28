@@ -3531,6 +3531,103 @@ SENSOR_UI_PATCH = r"""
   setInterval(applySensorUi,1000);
 })();
 </script>
+<script>
+/* +Add sensors button + dynamic plant cards (letters i..p) — injected here so
+   dashboard.html stays byte-for-byte identical to the original. The original
+   theme, layout, colours, and CSS are NOT modified; we only add an admin-only
+   button to the .avg-strip and the JS that grows the .plant-grid when the user
+   adds more sensors at runtime. */
+(function(){
+  function isViewer(){ try{ return typeof currentUser!=='undefined' && currentUser && currentUser.role==='viewer'; }catch(_){ return false; } }
+  function ensureAddBtn(){
+    if(document.getElementById('btn-add-sensor'))return;
+    const strip=document.querySelector('.avg-strip .avg-right');
+    if(!strip)return;
+    const btn=document.createElement('button');
+    btn.id='btn-add-sensor';
+    btn.type='button';
+    btn.setAttribute('data-admin','');
+    btn.title='Scan the I2C bus for new ADS1115 channels and add the matching moisture bar';
+    btn.style.cssText='border:1px solid var(--border);background:linear-gradient(135deg,var(--teal-lt),#fff);color:var(--teal-dk);font-weight:800;font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;border-radius:999px;cursor:pointer;box-shadow:0 4px 12px rgba(13,138,120,.12);white-space:nowrap;margin-left:10px';
+    btn.innerHTML='<span style="font-size:.95rem;font-weight:900;margin-right:4px">＋</span>Add sensors';
+    btn.addEventListener('click',addSensors);
+    btn.style.display=isViewer()?'none':'inline-flex';
+    strip.appendChild(btn);
+  }
+  function _plantUniverse(){
+    try{ return (window.state&&state.all_plants&&state.all_plants.length)?state.all_plants:'abcdefghijklmnop'.split(''); }
+    catch(_){ return 'abcdefghijklmnop'.split(''); }
+  }
+  function _ensurePlantCard(p){
+    if(document.getElementById('pc-'+p))return;
+    const grid=document.querySelector('.plant-grid');
+    if(!grid)return;
+    const U=p.toUpperCase();
+    const card=document.createElement('div');
+    card.className='plant-card c-good';
+    card.id='pc-'+p;
+    card.innerHTML=
+      '<div class="pc-name">Plant '+U+'</div>'+
+      '<div class="gauge-wrap"><svg class="gauge-svg" viewBox="0 0 120 120">'+
+        '<path fill="none" stroke="#ddeef2" stroke-width="12" stroke-linecap="round" d="M60 8 A52 52 0 1 1 60 112 A52 52 0 1 1 60 8"/>'+
+        '<path class="g-fill" id="gf-'+p+'" d="M60 8 A52 52 0 1 1 60 112 A52 52 0 1 1 60 8" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>'+
+        '<text class="g-val" id="pv-'+p+'" x="60" y="62">--</text>'+
+      '</svg></div>'+
+      '<div class="pc-badge bg-good" id="pb-'+p+'">—</div>'+
+      '<div class="pc-div"></div>'+
+      '<button class="btn-water locked" id="btn-'+p+'" disabled>Sensor Only</button>';
+    grid.appendChild(card);
+  }
+  function applyExtraPlantVisibility(){
+    let act=[];
+    try{ act=(typeof activePlants==='function')?activePlants():[]; }catch(_){}
+    for(const p of _plantUniverse()){
+      if(act.indexOf(p)>=0)_ensurePlantCard(p);
+      const c=document.getElementById('pc-'+p);
+      if(c)c.style.display=act.indexOf(p)>=0?'':'none';
+    }
+  }
+  window.addSensors=async function(){
+    if(typeof requireAdminControl==='function' && !requireAdminControl('Add sensors'))return;
+    const ansN=prompt('How many new moisture sensors do you want to add?\n\n(They will appear on the dashboard as soon as I find them on the I²C bus.)','1');
+    if(ansN===null)return;
+    const count=parseInt(ansN,10);
+    if(!(count>=1 && count<=16)){alert('Please enter a number from 1 to 16.');return;}
+    const ansP=prompt('Optional — BCM pins for the new pumps (comma-separated, blank = sensor-only).\n\nExample: 4,25',' ');
+    let relay_pins=[];
+    if(ansP!==null){
+      relay_pins=ansP.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>Number.isInteger(n)&&n>=0&&n<28);
+    }
+    try{
+      const r=await fetch('/api/sensors/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({count,relay_pins})});
+      const data=await r.json();
+      if(!r.ok||!data.ok){alert('Could not add sensors: '+(data.error||r.statusText));return;}
+      const added=(data.added||[]).map(a=>'• Plant '+a.plant.toUpperCase()+' @ 0x'+a.addr.toString(16).toUpperCase()+' ch'+a.channel+(a.relay_pin!=null?' (pump pin '+a.relay_pin+')':' (sensor-only)')).join('\n');
+      alert('Added '+(data.added||[]).length+' sensor(s):\n\n'+added+'\n\nThey will appear on the dashboard within a few seconds.');
+      if(typeof refresh==='function')refresh();
+    }catch(e){alert('Add sensors failed: '+e);}
+  };
+  function applyAddBtnVisibility(){
+    const b=document.getElementById('btn-add-sensor');
+    if(b)b.style.display=isViewer()?'none':'inline-flex';
+  }
+  function start(){
+    ensureAddBtn();
+    applyExtraPlantVisibility();
+    applyAddBtnVisibility();
+    setInterval(function(){
+      ensureAddBtn();
+      applyExtraPlantVisibility();
+      applyAddBtnVisibility();
+    },1500);
+  }
+  if(document.readyState==='complete'||document.readyState==='interactive'){
+    setTimeout(start,80);
+  }else{
+    document.addEventListener('DOMContentLoaded',start);
+  }
+})();
+</script>
 """
 
 def _inject_sensor_ui_patch(html: str) -> str:
