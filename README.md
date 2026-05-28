@@ -6,10 +6,10 @@
 Monitor soil moisture, automate irrigation, detect disease, and chat with your farm using AI — all from a single web dashboard.
 
 [![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](README.md)
-[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.ja.md)
-[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.hi.md)
-[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.ru.md)
-[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.zh.md)
+[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](docs/ja/README.md)
+[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](docs/hi/README.md)
+[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](docs/ru/README.md)
+[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](docs/zh/README.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)

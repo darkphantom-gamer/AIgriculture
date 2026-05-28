@@ -5,11 +5,11 @@
 **面向 Raspberry Pi 的开源智能农场系统。**
 监测土壤湿度、自动灌溉、检测病害，并与你的农场进行 AI 对话 — 全部通过一个网页仪表盘。
 
-[![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](README.md)
-[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.ja.md)
-[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.hi.md)
-[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.ru.md)
-[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.zh.md)
+[![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](../../README.md)
+[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](../ja/README.md)
+[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](../hi/README.md)
+[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](../ru/README.md)
+[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
@@ -20,7 +20,7 @@
 
 ---
 
-![农场总览](docs/assets/small_prototype.jpeg)
+![农场总览](../assets/small_prototype.jpeg)
 
 ---
 
@@ -43,15 +43,15 @@
 
 | # | 部件 | 为什么需要 | 新手提示 |
 |---|------|------------|-----------|
-| 1 | **Raspberry Pi 4 / 5**（4 GB+，推荐 8 GB）<br><img src="docs/assets/hardware/Raspberrypi_5.png" width="240"> | 运行整个系统 — 仪表盘、AI、灌溉逻辑。 | Pi 5 最快，但 Pi 4 (2 GB) 也可以试。烧录 **Raspberry Pi OS Bookworm 64-bit**。 |
-| 2 | **ADS1115 16-bit I²C ADC**<br><img src="docs/assets/hardware/adc_module.png" width="240"> | Pi 没有模拟输入；电容式湿度传感器是模拟信号，ADC 把它转成数字。 | 一片 ADS1115 = 4 个传感器。默认 8 盆需要 **两片**（`0x48` + `0x49`），最多 **四片**（`0x48`-`0x4B`）支持 16 盆。 |
-| 3 | **电容式土壤湿度传感器**<br><img src="docs/assets/hardware/moisture_sensor.png" width="240"> | 读取土壤湿度 — 自动灌溉的输入。 | 一定选 **电容式**（黄色 PCB），便宜的电阻式几周就会腐蚀。每盆植物一个。 |
-| 4 | **8 路继电器板**（active-LOW、光耦隔离）<br><img src="docs/assets/hardware/relay_module.png" width="240"> | 让 Pi 切换水泵开关。Pi 自身无法供给水泵电流。 | 必须标注 **5V trigger、opto-isolated**，否则 3.3V GPIO 触发不了。 |
-| 5 | **小型 5V 或 12V DC 水泵**<br><img src="docs/assets/hardware/water_pump.png" width="240"> | 真正给植物浇水的部件。 | 每盆一个。**务必单独供电，绝不能用 Pi 的 5V 引脚。** Pi 只控制继电器。 |
-| 6 | **Raspberry Pi 摄像头（CSI）** *或* **USB 摄像头**<br><img src="docs/assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="docs/assets/hardware/usb_camera.png" width="200"> | 一个用于 FarmMonitor 病害/成熟扫描，一个用于安防摄像头。 | 起步一个摄像头也够 — 传 `--security-camera` 跳过 `--farm-camera`。也支持 RTSP IP 摄像头。 |
-| 7 | **面包板 + 杜邦线**<br><img src="docs/assets/hardware/breadboard_and_jumper_wires.png" width="240"> | 无需焊接连接全部部件。 | 传感器 → ADC 用母对母，ADC → Pi 用公对母。 |
-| **+** | **Hailo-10H AI HAT** *(可选，加速 CV)*<br><img src="docs/assets/hardware/hailo10h_optional.png" width="240"> | 硬件加速 YOLO 推理，大幅缩短病害/成熟度扫描时间。 | **新手套件可跳过。** 普通 Pi 的 CPU 路径也跑得动。需要加速时再加。 |
-| **+** | **Meshtastic LoRa 电台** *(可选，无网离线聊天)*<br><img src="docs/assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | 在 Wi-Fi 覆盖外通过 LoRa mesh 与 FLORA 聊天。 | 可选。Heltec / LilyGo 板配 433 / 868 / 915 MHz 天线都行。只要 web UI 就跳过。 |
+| 1 | **Raspberry Pi 4 / 5**（4 GB+，推荐 8 GB）<br><img src="../assets/hardware/Raspberrypi_5.png" width="240"> | 运行整个系统 — 仪表盘、AI、灌溉逻辑。 | Pi 5 最快，但 Pi 4 (2 GB) 也可以试。烧录 **Raspberry Pi OS Bookworm 64-bit**。 |
+| 2 | **ADS1115 16-bit I²C ADC**<br><img src="../assets/hardware/adc_module.png" width="240"> | Pi 没有模拟输入；电容式湿度传感器是模拟信号，ADC 把它转成数字。 | 一片 ADS1115 = 4 个传感器。默认 8 盆需要 **两片**（`0x48` + `0x49`），最多 **四片**（`0x48`-`0x4B`）支持 16 盆。 |
+| 3 | **电容式土壤湿度传感器**<br><img src="../assets/hardware/moisture_sensor.png" width="240"> | 读取土壤湿度 — 自动灌溉的输入。 | 一定选 **电容式**（黄色 PCB），便宜的电阻式几周就会腐蚀。每盆植物一个。 |
+| 4 | **8 路继电器板**（active-LOW、光耦隔离）<br><img src="../assets/hardware/relay_module.png" width="240"> | 让 Pi 切换水泵开关。Pi 自身无法供给水泵电流。 | 必须标注 **5V trigger、opto-isolated**，否则 3.3V GPIO 触发不了。 |
+| 5 | **小型 5V 或 12V DC 水泵**<br><img src="../assets/hardware/water_pump.png" width="240"> | 真正给植物浇水的部件。 | 每盆一个。**务必单独供电，绝不能用 Pi 的 5V 引脚。** Pi 只控制继电器。 |
+| 6 | **Raspberry Pi 摄像头（CSI）** *或* **USB 摄像头**<br><img src="../assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="../assets/hardware/usb_camera.png" width="200"> | 一个用于 FarmMonitor 病害/成熟扫描，一个用于安防摄像头。 | 起步一个摄像头也够 — 传 `--security-camera` 跳过 `--farm-camera`。也支持 RTSP IP 摄像头。 |
+| 7 | **面包板 + 杜邦线**<br><img src="../assets/hardware/breadboard_and_jumper_wires.png" width="240"> | 无需焊接连接全部部件。 | 传感器 → ADC 用母对母，ADC → Pi 用公对母。 |
+| **+** | **Hailo-10H AI HAT** *(可选，加速 CV)*<br><img src="../assets/hardware/hailo10h_optional.png" width="240"> | 硬件加速 YOLO 推理，大幅缩短病害/成熟度扫描时间。 | **新手套件可跳过。** 普通 Pi 的 CPU 路径也跑得动。需要加速时再加。 |
+| **+** | **Meshtastic LoRa 电台** *(可选，无网离线聊天)*<br><img src="../assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | 在 Wi-Fi 覆盖外通过 LoRa mesh 与 FLORA 聊天。 | 可选。Heltec / LilyGo 板配 433 / 868 / 915 MHz 天线都行。只要 web UI 就跳过。 |
 
 **最小测试套件**（只为在桌面上玩一下仪表盘）:
 > 1 × Pi · 1 × ADS1115 · 1 × 湿度传感器 · 1 × USB 摄像头。就这些。不需要继电器、水泵、Hailo。等仪表盘起来后用 "+ Add sensors" 按钮添加更多。
@@ -145,7 +145,7 @@ docker compose up -d --force-recreate
 
 ## 仪表盘
 
-![仪表盘状态](docs/assets/dashboard_status.png)
+![仪表盘状态](../assets/dashboard_status.png)
 
 五个标签页：**Overview**（实时湿度 + 水泵控制）、**Cameras**（MJPEG 视频流）、**FLORA**（AI 聊天）、**Events**（告警日志）、**Settings**（通知 + 警报器）。
 
@@ -153,7 +153,7 @@ docker compose up -d --force-recreate
 
 ## FLORA AI 助手
 
-![FLORA 预览](docs/assets/FLORA_preview.jpeg)
+![FLORA 预览](../assets/FLORA_preview.jpeg)
 
 FLORA 能理解自然语言命令：
 
@@ -168,19 +168,19 @@ FLORA 能理解自然语言命令：
 
 | 层 | 角色 |
 |----|------|
-| ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | 服务商路由 + 回退 |
-| ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | 工具分发（传感器、水泵、摄像头、调度器） |
-| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | FLORA 推理与集成 |
+| ![Layer 1](../assets/FLORA_first_layer_Architecture.png) | 服务商路由 + 回退 |
+| ![Layer 2](../assets/FLORA_Second_layer_Architecture.png) | 工具分发（传感器、水泵、摄像头、调度器） |
+| ![Layer 3](../assets/FLORA_Third_Lasyer_Architecture.png) | FLORA 推理与集成 |
 
 ---
 
 ## FarmMonitor
 
-![FarmMonitor 架构](docs/assets/Farm_Monitor_Core_Architecture.png)
+![FarmMonitor 架构](../assets/Farm_Monitor_Core_Architecture.png)
 
 按计划对整块田进行扫描。捕获一组帧，剔除模糊的，再运行病害和成熟度检测。
 
-![FarmMonitor 结果](docs/assets/Farm_Monitor_Result.png)
+![FarmMonitor 结果](../assets/Farm_Monitor_Result.png)
 
 结果以 JSON + JPEG 保存在 `runtime/farmmonitor/`。若检测到病害且 SMTP 已配置，则发送邮件告警。
 
@@ -188,7 +188,7 @@ FLORA 能理解自然语言命令：
 
 ## 安防摄像头
 
-![安防摄像头结果](docs/assets/Security_camera_result.png)
+![安防摄像头结果](../assets/Security_camera_result.png)
 
 跳帧推理（每 N 帧）+ 类别白名单保持 CPU 占用低。检测到威胁时警报器响 8 秒并保存截图。
 
@@ -196,7 +196,7 @@ FLORA 能理解自然语言命令：
 
 ## Meshtastic LoRa 桥
 
-![Meshtastic](docs/assets/MEshtastic.png)
+![Meshtastic](../assets/MEshtastic.png)
 
 在 `.env` 设置 `MESH_ENABLED=true` 并把 `MESH_HOST` 指向你的节点。FLORA 会监听任意频道或私聊，只回复发送者 — 完全离线运行。
 
@@ -204,7 +204,7 @@ FLORA 能理解自然语言命令：
 
 ## 存储
 
-![Storage](docs/assets/Storage_Data_screenshot.png)
+![Storage](../assets/Storage_Data_screenshot.png)
 
 所有捕获帧、农场扫描和安防截图都可通过仪表盘 Events 标签页和存储 API 浏览。
 
@@ -283,7 +283,7 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # FLORA AI 助手
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # LoRa 桥
-├── docs/assets/                        # README 中使用的图片
+├── ../assets/                        # README 中使用的图片
 ├── .env.example                        # ← 复制为 .env 并编辑
 ├── config.example.yaml                 # ← 复制为 config.yaml（用于邮件）
 ├── wiring.example.yaml                 # ← 复制为 wiring.yaml（用于自定义引脚）

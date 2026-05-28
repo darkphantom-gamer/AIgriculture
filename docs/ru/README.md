@@ -5,11 +5,11 @@
 **Система умной фермы с открытым исходным кодом для Raspberry Pi.**
 Следите за влажностью почвы, автоматизируйте полив, обнаруживайте болезни и общайтесь со своей фермой с помощью ИИ — всё это с одной веб-панели.
 
-[![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](README.md)
-[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.ja.md)
-[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.hi.md)
-[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.ru.md)
-[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.zh.md)
+[![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](../../README.md)
+[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](../ja/README.md)
+[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](../hi/README.md)
+[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.md)
+[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](../zh/README.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
@@ -20,7 +20,7 @@
 
 ---
 
-![Обзор фермы](docs/assets/small_prototype.jpeg)
+![Обзор фермы](../assets/small_prototype.jpeg)
 
 ---
 
@@ -43,15 +43,15 @@
 
 | # | Компонент | Зачем нужно | Совет новичку |
 |---|-----------|-------------|----------------|
-| 1 | **Raspberry Pi 4 / 5** (4 ГБ+, рекомендуется 8 ГБ)<br><img src="docs/assets/hardware/Raspberrypi_5.png" width="240"> | На нём работает всё — дашборд, ИИ, логика полива. | Pi 5 быстрее, но Pi 4 (2 ГБ) тоже подойдёт. Прошейте **Raspberry Pi OS Bookworm 64-bit**. |
-| 2 | **ADS1115 16-битный I²C АЦП**<br><img src="docs/assets/hardware/adc_module.png" width="240"> | У Pi нет аналоговых входов, а ёмкостные датчики аналоговые — АЦП переводит их в числа. | Один ADS1115 = 4 датчика. Для стандартной сборки на 8 растений берите **два** (`0x48` + `0x49`), до **четырёх** (`0x48`-`0x4B`) для 16 растений. |
-| 3 | **Ёмкостный датчик влажности почвы**<br><img src="docs/assets/hardware/moisture_sensor.png" width="240"> | Измеряет влажность почвы — это вход автоматического полива. | Только **ёмкостный** (жёлтая плата), дешёвые резистивные коррозируют за пару недель. По одному на растение. |
-| 4 | **8-канальная плата реле** (active-LOW, оптоизолированная)<br><img src="docs/assets/hardware/relay_module.png" width="240"> | Позволяет Pi включать/выключать насосы. Pi сам не может питать насос. | Берите с пометкой **5V trigger, opto-isolated**, иначе с 3,3 В Pi работать не будет. |
-| 5 | **Маленький водяной насос 5 В или 12 В DC**<br><img src="docs/assets/hardware/water_pump.png" width="240"> | Та самая штука, которая поливает растение. | По одному на растение. **Всегда питайте от отдельного БП, а не от 5V Pi.** Pi только управляет реле. |
-| 6 | **Камера Raspberry Pi (CSI)** *или* **USB-веб-камера**<br><img src="docs/assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="docs/assets/hardware/usb_camera.png" width="200"> | Одна — для скана FarmMonitor, другая — для камеры безопасности. | Можно начать и с одной — передайте `--security-camera`, пропустите `--farm-camera`. RTSP IP-камеры тоже работают. |
-| 7 | **Макетная плата + перемычки**<br><img src="docs/assets/hardware/breadboard_and_jumper_wires.png" width="240"> | Чтобы собрать всё без пайки. | Возьмите перемычки мама-мама для датчик→АЦП и мама-папа для АЦП→Pi. |
-| **+** | **Hailo-10H AI HAT** *(опционально, ускоренный CV)*<br><img src="docs/assets/hardware/hailo10h_optional.png" width="240"> | Аппаратное ускорение YOLO. Заметно сокращает время сканов. | **Пропустите для сборки новичка.** На обычном Pi путь через CPU тоже работает нормально. Добавляйте Hailo только если нужно быстрее. |
-| **+** | **Радио Meshtastic LoRa** *(опционально, чат вне сети)*<br><img src="docs/assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | Общайтесь с FLORA вне зоны Wi-Fi через LoRa-mesh. | Опционально. Платы Heltec / LilyGo с антеннами 433 / 868 / 915 МГц работают. Пропустите, если хватит веб-интерфейса. |
+| 1 | **Raspberry Pi 4 / 5** (4 ГБ+, рекомендуется 8 ГБ)<br><img src="../assets/hardware/Raspberrypi_5.png" width="240"> | На нём работает всё — дашборд, ИИ, логика полива. | Pi 5 быстрее, но Pi 4 (2 ГБ) тоже подойдёт. Прошейте **Raspberry Pi OS Bookworm 64-bit**. |
+| 2 | **ADS1115 16-битный I²C АЦП**<br><img src="../assets/hardware/adc_module.png" width="240"> | У Pi нет аналоговых входов, а ёмкостные датчики аналоговые — АЦП переводит их в числа. | Один ADS1115 = 4 датчика. Для стандартной сборки на 8 растений берите **два** (`0x48` + `0x49`), до **четырёх** (`0x48`-`0x4B`) для 16 растений. |
+| 3 | **Ёмкостный датчик влажности почвы**<br><img src="../assets/hardware/moisture_sensor.png" width="240"> | Измеряет влажность почвы — это вход автоматического полива. | Только **ёмкостный** (жёлтая плата), дешёвые резистивные коррозируют за пару недель. По одному на растение. |
+| 4 | **8-канальная плата реле** (active-LOW, оптоизолированная)<br><img src="../assets/hardware/relay_module.png" width="240"> | Позволяет Pi включать/выключать насосы. Pi сам не может питать насос. | Берите с пометкой **5V trigger, opto-isolated**, иначе с 3,3 В Pi работать не будет. |
+| 5 | **Маленький водяной насос 5 В или 12 В DC**<br><img src="../assets/hardware/water_pump.png" width="240"> | Та самая штука, которая поливает растение. | По одному на растение. **Всегда питайте от отдельного БП, а не от 5V Pi.** Pi только управляет реле. |
+| 6 | **Камера Raspberry Pi (CSI)** *или* **USB-веб-камера**<br><img src="../assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="../assets/hardware/usb_camera.png" width="200"> | Одна — для скана FarmMonitor, другая — для камеры безопасности. | Можно начать и с одной — передайте `--security-camera`, пропустите `--farm-camera`. RTSP IP-камеры тоже работают. |
+| 7 | **Макетная плата + перемычки**<br><img src="../assets/hardware/breadboard_and_jumper_wires.png" width="240"> | Чтобы собрать всё без пайки. | Возьмите перемычки мама-мама для датчик→АЦП и мама-папа для АЦП→Pi. |
+| **+** | **Hailo-10H AI HAT** *(опционально, ускоренный CV)*<br><img src="../assets/hardware/hailo10h_optional.png" width="240"> | Аппаратное ускорение YOLO. Заметно сокращает время сканов. | **Пропустите для сборки новичка.** На обычном Pi путь через CPU тоже работает нормально. Добавляйте Hailo только если нужно быстрее. |
+| **+** | **Радио Meshtastic LoRa** *(опционально, чат вне сети)*<br><img src="../assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | Общайтесь с FLORA вне зоны Wi-Fi через LoRa-mesh. | Опционально. Платы Heltec / LilyGo с антеннами 433 / 868 / 915 МГц работают. Пропустите, если хватит веб-интерфейса. |
 
 **Минимальная тестовая сборка** (просто чтобы поиграть с дашбордом на столе):
 > 1 × Pi · 1 × ADS1115 · 1 × датчик влажности · 1 × USB-камера. И всё. Никаких реле, насосов, Hailo. Дальше пользуйтесь кнопкой "+ Add sensors" прямо в дашборде.
@@ -145,7 +145,7 @@ docker compose up -d --force-recreate
 
 ## Дашборд
 
-![Статус дашборда](docs/assets/dashboard_status.png)
+![Статус дашборда](../assets/dashboard_status.png)
 
 Пять вкладок: **Overview** (живая влажность и управление насосами), **Cameras** (MJPEG-стримы), **FLORA** (ИИ-чат), **Events** (журнал тревог), **Settings** (уведомления и сирена).
 
@@ -153,7 +153,7 @@ docker compose up -d --force-recreate
 
 ## ИИ-ассистент FLORA
 
-![Превью FLORA](docs/assets/FLORA_preview.jpeg)
+![Превью FLORA](../assets/FLORA_preview.jpeg)
 
 FLORA понимает команды на естественном языке:
 
@@ -168,19 +168,19 @@ FLORA понимает команды на естественном языке:
 
 | Слой | Роль |
 |------|------|
-| ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | Маршрутизация провайдеров + fallback |
-| ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | Диспетчер инструментов (датчики, насосы, камера, планировщик) |
-| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | Рассуждение и интеграция FLORA |
+| ![Layer 1](../assets/FLORA_first_layer_Architecture.png) | Маршрутизация провайдеров + fallback |
+| ![Layer 2](../assets/FLORA_Second_layer_Architecture.png) | Диспетчер инструментов (датчики, насосы, камера, планировщик) |
+| ![Layer 3](../assets/FLORA_Third_Lasyer_Architecture.png) | Рассуждение и интеграция FLORA |
 
 ---
 
 ## FarmMonitor
 
-![Архитектура FarmMonitor](docs/assets/Farm_Monitor_Core_Architecture.png)
+![Архитектура FarmMonitor](../assets/Farm_Monitor_Core_Architecture.png)
 
 По расписанию сканирует всё поле. Берёт пачку кадров, отбрасывает размытые, затем запускает детекторы болезней и зрелости.
 
-![Результат FarmMonitor](docs/assets/Farm_Monitor_Result.png)
+![Результат FarmMonitor](../assets/Farm_Monitor_Result.png)
 
 Результаты сохраняются в `runtime/farmmonitor/` как JSON + JPEG. Если найдена болезнь и настроен SMTP — отправляется e-mail.
 
@@ -188,7 +188,7 @@ FLORA понимает команды на естественном языке:
 
 ## Камера безопасности
 
-![Результат камеры безопасности](docs/assets/Security_camera_result.png)
+![Результат камеры безопасности](../assets/Security_camera_result.png)
 
 Инференс через кадр (frame-skip) и allow-list классов держат CPU в норме. При обнаружении угрозы сирена включается на 8 секунд и сохраняется снимок.
 
@@ -196,7 +196,7 @@ FLORA понимает команды на естественном языке:
 
 ## Мост Meshtastic LoRa
 
-![Meshtastic](docs/assets/MEshtastic.png)
+![Meshtastic](../assets/MEshtastic.png)
 
 В `.env` поставьте `MESH_ENABLED=true` и укажите `MESH_HOST` для своего узла. FLORA слушает любые каналы и ЛС, отвечает только отправителю — полностью офлайн.
 
@@ -204,7 +204,7 @@ FLORA понимает команды на естественном языке:
 
 ## Хранилище
 
-![Storage](docs/assets/Storage_Data_screenshot.png)
+![Storage](../assets/Storage_Data_screenshot.png)
 
 Все снятые кадры, сканы поля и снимки камеры безопасности доступны через вкладку Events в дашборде и через storage API.
 
@@ -283,7 +283,7 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # ИИ-ассистент FLORA
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # мост LoRa
-├── docs/assets/                        # изображения, используемые в README
+├── ../assets/                        # изображения, используемые в README
 ├── .env.example                        # ← скопировать в .env и отредактировать
 ├── config.example.yaml                 # ← скопировать в config.yaml (для e-mail)
 ├── wiring.example.yaml                 # ← скопировать в wiring.yaml (для своих пинов)

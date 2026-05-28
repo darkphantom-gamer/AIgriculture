@@ -5,11 +5,11 @@
 **Raspberry Pi के लिए ओपन-सोर्स स्मार्ट फार्म सिस्टम।**
 मिट्टी की नमी पर नज़र रखें, सिंचाई स्वचालित करें, रोगों का पता लगाएं और AI से बात करें — सब कुछ एक वेब डैशबोर्ड से।
 
-[![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](README.md)
-[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.ja.md)
-[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.hi.md)
-[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.ru.md)
-[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.zh.md)
+[![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](../../README.md)
+[![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](../ja/README.md)
+[![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.md)
+[![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](../ru/README.md)
+[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](../zh/README.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
@@ -20,7 +20,7 @@
 
 ---
 
-![फार्म दृश्य](docs/assets/small_prototype.jpeg)
+![फार्म दृश्य](../assets/small_prototype.jpeg)
 
 ---
 
@@ -43,15 +43,15 @@
 
 | # | कंपोनेंट | क्यों ज़रूरी है | शुरुआती टिप |
 |---|---------|-----------------|----------------|
-| 1 | **Raspberry Pi 4 / 5** (4 GB+, 8 GB सुझाव)<br><img src="docs/assets/hardware/Raspberrypi_5.png" width="240"> | पूरा सिस्टम — डैशबोर्ड, AI, सिंचाई लॉजिक — यही चलाता है। | Pi 5 सबसे तेज़ है, पर Pi 4 (2 GB) भी काम करेगा। **Raspberry Pi OS Bookworm 64-bit** फ्लैश करें। |
-| 2 | **ADS1115 16-bit I²C ADC**<br><img src="docs/assets/hardware/adc_module.png" width="240"> | Pi में एनालॉग इनपुट नहीं होता। कैपेसिटिव नमी सेंसर एनालॉग होते हैं, ADC उन्हें संख्याओं में बदलता है। | एक ADS1115 = 4 सेंसर। डिफ़ॉल्ट 8-पौधे बिल्ड के लिए **दो** (`0x48` + `0x49`), 16 पौधों तक **चार** (`0x48`-`0x4B`)। |
-| 3 | **कैपेसिटिव मिट्टी नमी सेंसर**<br><img src="docs/assets/hardware/moisture_sensor.png" width="240"> | मिट्टी कितनी गीली है, ये पढ़ता है — ऑटो-सिंचाई का इनपुट। | **कैपेसिटिव** (पीला PCB) ही लें, सस्ते रेज़िस्टिव वाले हफ़्तों में जंग पकड़ लेते हैं। हर पौधे के लिए एक। |
-| 4 | **8-चैनल रिले बोर्ड** (active-LOW, opto-isolated)<br><img src="docs/assets/hardware/relay_module.png" width="240"> | पंपों को ON/OFF करने देता है। Pi ख़ुद से पंप की पावर नहीं दे सकता। | **5V ट्रिगर, ऑप्टो-आइसोलेटेड** लिखा हो — वरना 3.3V पिन से काम नहीं करेगा। |
-| 5 | **छोटा 5V या 12V DC वॉटर पंप**<br><img src="docs/assets/hardware/water_pump.png" width="240"> | असली में पौधे को पानी यही देता है। | हर पौधे के लिए एक। **हमेशा अलग पावर सप्लाई दें, Pi के 5V रेल से कभी नहीं।** Pi सिर्फ़ रिले कंट्रोल करता है। |
-| 6 | **Raspberry Pi कैमरा (CSI)** *या* **USB वेबकैम**<br><img src="docs/assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="docs/assets/hardware/usb_camera.png" width="200"> | एक से FarmMonitor रोग/पकने का स्कैन, दूसरे से सिक्योरिटी कैमरा। | एक कैमरे से भी शुरू कर सकते हैं — `--security-camera` पास करें, `--farm-camera` छोड़ दें। RTSP IP कैमरा भी चलेगा। |
-| 7 | **ब्रेडबोर्ड + जंपर वायर**<br><img src="docs/assets/hardware/breadboard_and_jumper_wires.png" width="240"> | बिना सोल्डरिंग के सब जोड़ने के लिए। | सेंसर से ADC के लिए female-to-female, ADC से Pi के लिए male-to-female जंपर लें। |
-| **+** | **Hailo-10H AI HAT** *(वैकल्पिक, तेज़ विज़न)*<br><img src="docs/assets/hardware/hailo10h_optional.png" width="240"> | हार्डवेयर-एक्सेलरेटेड YOLO इन्फरेंस। रोग/पकने स्कैन का समय बहुत कम। | **शुरुआती बिल्ड में छोड़ें।** साधारण Pi पर CPU रास्ता भी अच्छा चलता है। बस तेज़ चाहिए तब लें। |
-| **+** | **Meshtastic LoRa रेडियो** *(वैकल्पिक, ऑफ़-ग्रिड चैट)*<br><img src="docs/assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | Wi-Fi की पहुँच से बाहर हों तब भी LoRa मेश पर FLORA से बात करें। | वैकल्पिक। Heltec / LilyGo बोर्ड और 433 / 868 / 915 MHz एंटीना चलेंगे। केवल वेब UI काफ़ी है तो छोड़ दें। |
+| 1 | **Raspberry Pi 4 / 5** (4 GB+, 8 GB सुझाव)<br><img src="../assets/hardware/Raspberrypi_5.png" width="240"> | पूरा सिस्टम — डैशबोर्ड, AI, सिंचाई लॉजिक — यही चलाता है। | Pi 5 सबसे तेज़ है, पर Pi 4 (2 GB) भी काम करेगा। **Raspberry Pi OS Bookworm 64-bit** फ्लैश करें। |
+| 2 | **ADS1115 16-bit I²C ADC**<br><img src="../assets/hardware/adc_module.png" width="240"> | Pi में एनालॉग इनपुट नहीं होता। कैपेसिटिव नमी सेंसर एनालॉग होते हैं, ADC उन्हें संख्याओं में बदलता है। | एक ADS1115 = 4 सेंसर। डिफ़ॉल्ट 8-पौधे बिल्ड के लिए **दो** (`0x48` + `0x49`), 16 पौधों तक **चार** (`0x48`-`0x4B`)। |
+| 3 | **कैपेसिटिव मिट्टी नमी सेंसर**<br><img src="../assets/hardware/moisture_sensor.png" width="240"> | मिट्टी कितनी गीली है, ये पढ़ता है — ऑटो-सिंचाई का इनपुट। | **कैपेसिटिव** (पीला PCB) ही लें, सस्ते रेज़िस्टिव वाले हफ़्तों में जंग पकड़ लेते हैं। हर पौधे के लिए एक। |
+| 4 | **8-चैनल रिले बोर्ड** (active-LOW, opto-isolated)<br><img src="../assets/hardware/relay_module.png" width="240"> | पंपों को ON/OFF करने देता है। Pi ख़ुद से पंप की पावर नहीं दे सकता। | **5V ट्रिगर, ऑप्टो-आइसोलेटेड** लिखा हो — वरना 3.3V पिन से काम नहीं करेगा। |
+| 5 | **छोटा 5V या 12V DC वॉटर पंप**<br><img src="../assets/hardware/water_pump.png" width="240"> | असली में पौधे को पानी यही देता है। | हर पौधे के लिए एक। **हमेशा अलग पावर सप्लाई दें, Pi के 5V रेल से कभी नहीं।** Pi सिर्फ़ रिले कंट्रोल करता है। |
+| 6 | **Raspberry Pi कैमरा (CSI)** *या* **USB वेबकैम**<br><img src="../assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="../assets/hardware/usb_camera.png" width="200"> | एक से FarmMonitor रोग/पकने का स्कैन, दूसरे से सिक्योरिटी कैमरा। | एक कैमरे से भी शुरू कर सकते हैं — `--security-camera` पास करें, `--farm-camera` छोड़ दें। RTSP IP कैमरा भी चलेगा। |
+| 7 | **ब्रेडबोर्ड + जंपर वायर**<br><img src="../assets/hardware/breadboard_and_jumper_wires.png" width="240"> | बिना सोल्डरिंग के सब जोड़ने के लिए। | सेंसर से ADC के लिए female-to-female, ADC से Pi के लिए male-to-female जंपर लें। |
+| **+** | **Hailo-10H AI HAT** *(वैकल्पिक, तेज़ विज़न)*<br><img src="../assets/hardware/hailo10h_optional.png" width="240"> | हार्डवेयर-एक्सेलरेटेड YOLO इन्फरेंस। रोग/पकने स्कैन का समय बहुत कम। | **शुरुआती बिल्ड में छोड़ें।** साधारण Pi पर CPU रास्ता भी अच्छा चलता है। बस तेज़ चाहिए तब लें। |
+| **+** | **Meshtastic LoRa रेडियो** *(वैकल्पिक, ऑफ़-ग्रिड चैट)*<br><img src="../assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | Wi-Fi की पहुँच से बाहर हों तब भी LoRa मेश पर FLORA से बात करें। | वैकल्पिक। Heltec / LilyGo बोर्ड और 433 / 868 / 915 MHz एंटीना चलेंगे। केवल वेब UI काफ़ी है तो छोड़ दें। |
 
 **मिनिमम टेस्टिंग बिल्ड** (केवल डेस्क पर डैशबोर्ड चलाने के लिए):
 > 1 × Pi · 1 × ADS1115 · 1 × नमी सेंसर · 1 × USB कैमरा। बस। न रिले, न पंप, न Hailo। डैशबोर्ड चलने पर "+ Add sensors" बटन से और बढ़ा सकते हैं।
@@ -145,7 +145,7 @@ docker compose up -d --force-recreate
 
 ## डैशबोर्ड
 
-![डैशबोर्ड स्थिति](docs/assets/dashboard_status.png)
+![डैशबोर्ड स्थिति](../assets/dashboard_status.png)
 
 पाँच टैब: **Overview** (लाइव नमी + पंप कंट्रोल), **Cameras** (MJPEG स्ट्रीम), **FLORA** (AI चैट), **Events** (अलर्ट लॉग), **Settings** (नोटिफिकेशन + सायरन)।
 
@@ -153,7 +153,7 @@ docker compose up -d --force-recreate
 
 ## FLORA AI असिस्टेंट
 
-![FLORA प्रीव्यू](docs/assets/FLORA_preview.jpeg)
+![FLORA प्रीव्यू](../assets/FLORA_preview.jpeg)
 
 FLORA साधारण भाषा के आदेश समझती है:
 
@@ -168,19 +168,19 @@ FLORA साधारण भाषा के आदेश समझती है
 
 | लेयर | भूमिका |
 |------|--------|
-| ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | प्रोवाइडर रूटिंग + फॉलबैक |
-| ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | टूल डिस्पैच (सेंसर, पंप, कैमरा, शेड्यूलर) |
-| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | FLORA की रीज़निंग और इंटीग्रेशन |
+| ![Layer 1](../assets/FLORA_first_layer_Architecture.png) | प्रोवाइडर रूटिंग + फॉलबैक |
+| ![Layer 2](../assets/FLORA_Second_layer_Architecture.png) | टूल डिस्पैच (सेंसर, पंप, कैमरा, शेड्यूलर) |
+| ![Layer 3](../assets/FLORA_Third_Lasyer_Architecture.png) | FLORA की रीज़निंग और इंटीग्रेशन |
 
 ---
 
 ## FarmMonitor
 
-![FarmMonitor आर्किटेक्चर](docs/assets/Farm_Monitor_Core_Architecture.png)
+![FarmMonitor आर्किटेक्चर](../assets/Farm_Monitor_Core_Architecture.png)
 
 शेड्यूल पर पूरे खेत की स्कैन चलाता है। फ्रेम के बैच लेता है, धुंधले हटाता है, फिर रोग और पकने की डिटेक्शन करता है।
 
-![FarmMonitor परिणाम](docs/assets/Farm_Monitor_Result.png)
+![FarmMonitor परिणाम](../assets/Farm_Monitor_Result.png)
 
 परिणाम `runtime/farmmonitor/` में JSON + JPEG के रूप में सेव होते हैं। रोग दिखने पर और SMTP सेट हो तो ईमेल अलर्ट जाता है।
 
@@ -188,7 +188,7 @@ FLORA साधारण भाषा के आदेश समझती है
 
 ## सिक्योरिटी कैमरा
 
-![सिक्योरिटी कैमरा परिणाम](docs/assets/Security_camera_result.png)
+![सिक्योरिटी कैमरा परिणाम](../assets/Security_camera_result.png)
 
 फ्रेम-स्किप इन्फरेंस (हर N फ्रेम) और क्लास allow-list से CPU हल्का रहता है। ख़तरा मिले तो सायरन 8 सेकंड बजती है और स्नैपशॉट सेव होता है।
 
@@ -196,7 +196,7 @@ FLORA साधारण भाषा के आदेश समझती है
 
 ## Meshtastic LoRa ब्रिज
 
-![Meshtastic](docs/assets/MEshtastic.png)
+![Meshtastic](../assets/MEshtastic.png)
 
 `.env` में `MESH_ENABLED=true` करें और `MESH_HOST` को अपने नोड पर सेट करें। FLORA किसी भी चैनल या DM पर सुनती है और भेजने वाले को ही उत्तर देती है — पूरी तरह ऑफ़-ग्रिड चलता है।
 
@@ -204,7 +204,7 @@ FLORA साधारण भाषा के आदेश समझती है
 
 ## स्टोरेज
 
-![Storage](docs/assets/Storage_Data_screenshot.png)
+![Storage](../assets/Storage_Data_screenshot.png)
 
 सभी कैप्चर फ्रेम, फ़ार्म स्कैन और सिक्योरिटी स्नैपशॉट डैशबोर्ड के Events टैब और स्टोरेज API से ब्राउज़ किए जा सकते हैं।
 
@@ -283,7 +283,7 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # FLORA AI असिस्टेंट
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # LoRa ब्रिज
-├── docs/assets/                        # README में उपयोग की गई इमेज
+├── ../assets/                        # README में उपयोग की गई इमेज
 ├── .env.example                        # ← .env में कॉपी करके एडिट
 ├── config.example.yaml                 # ← config.yaml में कॉपी (ईमेल के लिए)
 ├── wiring.example.yaml                 # ← wiring.yaml में कॉपी (कस्टम पिन)
