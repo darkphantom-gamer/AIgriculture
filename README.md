@@ -9,9 +9,10 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 [![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.ja.md)
 [![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.hi.md)
 [![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.ru.md)
+[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.zh.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed)](https://docs.docker.com/)
 
@@ -19,7 +20,7 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 
 ---
 
-![Farm overview](docs/assets/big_farm.jpeg)
+![Farm overview](docs/assets/small_prototype.jpeg)
 
 ---
 
@@ -70,7 +71,11 @@ Open `http://<pi-ip>:8000`.
 
 > **Running on a laptop / non-Pi?** This still works. GPIO and I2C silently no-op when the hardware isn't there — you get the full dashboard, AI chat, and (USB / network) cameras.
 
-See [docs/SETUP.md](docs/SETUP.md) for native install, systemd service, and Hailo setup.
+> **Native install instead?**
+> ```bash
+> pip install -r requirements.txt --break-system-packages
+> python plantwatch.py
+> ```
 
 ---
 
@@ -116,7 +121,7 @@ notifications:
 
 ## 🔌 Wiring (change one file to match your board)
 
-Default pin map matches the reference build in [`aigriculture.txt`](aigriculture.txt):
+Default pin map (matches what `plantwatch.py` ships with):
 
 | Component | Default BCM pins |
 |-----------|------------------|
@@ -165,7 +170,7 @@ FLORA works completely offline when no API keys are set, using keyword routing.
 |-------|------|
 | ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | Provider routing + fallback |
 | ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | Tool dispatch (sensors, pumps, camera, scheduler) |
-| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | Offline keyword rules |
+| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | Flora Reasoning and Integration |
 
 ---
 
@@ -208,14 +213,14 @@ All captured frames, farm scans, and security snapshots are browsable from the d
 ## Camera options
 
 ```bash
-# Raspberry Pi CSI camera
-python -m aigriculture --security-camera csi:0 --farm-camera csi:1
+# Raspberry Pi CSI camera (set via --input on the command line)
+python plantwatch.py --input csi:0
 
 # USB camera
-python -m aigriculture --security-camera /dev/video0 --farm-camera /dev/video1
+python plantwatch.py --input /dev/video0
 
 # Network / RTSP camera
-python -m aigriculture --security-camera rtsp://user:pass@192.168.1.10/live
+python plantwatch.py --input rtsp://user:pass@192.168.1.10/live
 ```
 
 In Docker, uncomment the relevant `command:` line in `docker-compose.yml`.
@@ -225,23 +230,16 @@ In Docker, uncomment the relevant `command:` line in `docker-compose.yml`.
 ## 🧠 Plug in your own ML models
 
 The disease and ripeness detectors are just **Ultralytics YOLO `.pt` files**.
-Train them on your own crop, drop them into `models/`, point the app at them — done.
+Train them on your own crop, drop them into a `models/` folder beside `plantwatch.py`, and the app picks them up — done.
 
 ```bash
-# Native run
-python -m aigriculture \
-  --disease-model  models/my_strawberry_disease.pt \
-  --ripeness-model models/my_tomato_ripeness.pt
-
-# Docker — mount your models directory over the bundled one
-# (uncomment the `./models:/app/models:ro` line in docker-compose.yml)
-docker compose up -d
+# The defaults live under farmmonitor working directory.
+# Replace these with your own .pt weights and FarmMonitor uses them on the next scan:
+cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
+cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
 ```
 
-What "compatible" means in practice:
-- Any model exported by `yolo export ... format=onnx` or trained with `ultralytics` works.
-- For the **security camera**, swap with `--model my_yolo.pt` (default `yolo11n.pt` auto-downloads on first run).
-- For **Hailo**, you'll need a `.hef` compiled with the Hailo Dataflow Compiler — see [`models/README.md`](models/README.md).
+For the **security camera**, set `PLANTWATCH_SECURITY_HEF` in `.env` to point at your `.hef` file (Hailo) — the default CPU YOLO path is used otherwise.
 
 The bundled strawberry models are a starting point, not a hard requirement.
 
@@ -250,12 +248,8 @@ The bundled strawberry models are a starting point, not a hard requirement.
 ## Hailo (optional)
 
 ```bash
-# Install HailoRT SDK on the host first (see models/README.md), then:
-pip install -r requirements-hailo.txt
-python -m aigriculture --backend hailo
-
-# Or with Docker
-docker compose -f docker-compose.yml -f docker-compose.hailo.yml up -d
+# Install HailoRT SDK on the host first, then run with the Hailo input flags:
+python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
 ```
 
 ---
@@ -263,19 +257,16 @@ docker compose -f docker-compose.yml -f docker-compose.hailo.yml up -d
 ## CLI reference
 
 ```
-python -m aigriculture [options]
+python plantwatch.py [options]
 
-  --host              bind address (default: 0.0.0.0)
-  --port              port (default: 8000)
-  --security-camera   camera spec for security feed (csi:N | /dev/videoN | rtsp://...)
-  --farm-camera       camera spec for FarmMonitor feed
-  --backend           cpu (default) | hailo
-  --model             YOLO model for security camera (default: yolo11n.pt)
-  --imgsz             inference input size (default: 480)
-  --detect-every      skip N frames between detections (default: 3)
-  --disease-model     path to disease .pt (default: models/Disease_detect.pt)
-  --ripeness-model    path to ripeness .pt (default: models/Ripeness_detect.pt)
+  --input             camera input (csi:N | /dev/videoN | rtsp://... | path)
+  --arch              hailo10h | cpu (default: cpu)
+  --use-frame         use Hailo's per-frame callback (Hailo only)
+  --use-rpicam        use the picamera2 (libcamera) capture path
 ```
+
+All other options (port, JPEG quality, FPS, security HEF path) are environment
+variables — see `.env.example`.
 
 ---
 
@@ -283,26 +274,23 @@ python -m aigriculture [options]
 
 ```
 AIgriculture/
-├── aigriculture/         # Python package
-│   ├── camera/           # CSI / USB / RTSP backends
-│   ├── farmmonitor/      # disease + ripeness scanning
-│   ├── flora/            # AI assistant + tools
-│   ├── hardware/         # gpio + moisture, both read wiring.yaml
-│   ├── inference/        # YOLO CPU + Hailo backends
-│   ├── mesh/             # Meshtastic LoRa bridge
-│   ├── security/         # intruder detection
-│   └── web/              # FastAPI app + dashboard HTML
-├── docs/
-│   ├── SETUP.md          # detailed setup guide
-│   └── assets/           # images used in this README
-├── labels/               # YOLO class labels (JSON)
-├── models/               # bundled .pt + .hef weights
-├── .env.example          # ← copy to .env and edit
-├── config.example.yaml   # ← copy to config.yaml and edit (for email)
-├── wiring.example.yaml   # ← copy to wiring.yaml and edit (for custom pins)
+├── plantwatch.py                       # main app: dashboard + sensors + irrigation
+├── dashboard_sample.html               # the dashboard (single-page app)
+├── login.html                          # login screen
+├── farm_monitor_designer_email.py      # branded alert email composer
+├── farm_monitor_pt_scan.py             # disease + ripeness .pt scanner
+├── farm_monitor_disease_labels.json    # YOLO class labels for disease
+├── farm_monitor_ripeness_labels.json   # YOLO class labels for ripeness
+├── flora_agent.py / flora_config.py    # FLORA AI assistant
+├── flora_report.py / flora_scheduler.py / flora_tools.py
+├── meshtastic_flora_bridge.py          # LoRa bridge
+├── docs/assets/                        # images used in this README
+├── .env.example                        # ← copy to .env and edit
+├── config.example.yaml                 # ← copy to config.yaml and edit (for email)
+├── wiring.example.yaml                 # ← copy to wiring.yaml and edit (for custom pins)
 ├── docker-compose.yml
 ├── Dockerfile
-└── aigriculture.txt      # complete hand-off spec
+└── requirements.txt
 ```
 
 ---

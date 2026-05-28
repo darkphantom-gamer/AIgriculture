@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJBSWdyaWN1bHR1cmUiPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjkiIHkxPSI3IiB4Mj0iNTUiIHkyPSI1NyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMwZWE1ZTkiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjUyIiBzdG9wLWNvbG9yPSIjMTRiOGE2Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzIyYzU1ZSIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0icGFuZWwiIHgxPSIxOCIgeTE9IjExIiB4Mj0iNDciIHkyPSI1NCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMwNjIzMzEiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMDgzYTM1Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGZpbHRlciBpZD0ic29mdCIgeD0iLTI1JSIgeT0iLTI1JSIgd2lkdGg9IjE1MCUiIGhlaWdodD0iMTUwJSI+CiAgICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSI0IiBzdGREZXZpYXRpb249IjMiIGZsb29kLWNvbG9yPSIjMDQyZjJlIiBmbG9vZC1vcGFjaXR5PSIwLjMyIi8+CiAgICA8L2ZpbHRlcj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTciIGZpbGw9InVybCgjYmcpIi8+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSIxMyIgcj0iNS41IiBmaWxsPSIjZmFjYzE1IiBvcGFjaXR5PSIwLjk4Ii8+CiAgPHBhdGggZD0iTTEyIDQ4YzkuOC00LjYgMjguOS00LjYgNDAgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDlmOTlkIiBzdHJva2Utd2lkdGg9IjMuMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBvcGFjaXR5PSIwLjkyIi8+CiAgPHBhdGggZD0iTTE2IDU0YzcuOC0zIDIzLjctMy4xIDMyIDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2JiZjdkMCIgc3Ryb2tlLXdpZHRoPSIyLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC43MiIvPgogIDxnIGZpbHRlcj0idXJsKCNzb2Z0KSI+CiAgICA8Y2lyY2xlIGN4PSIzMiIgY3k9IjMwIiByPSIyMCIgZmlsbD0idXJsKCNwYW5lbCkiIG9wYWNpdHk9IjAuOTYiLz4KICAgIDxwYXRoIGQ9Ik0yMCA0MWM3LjUtMy40IDE3LjItMy40IDI0IDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzIyZDNlZSIgc3Ryb2tlLXdpZHRoPSIyLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC45Ii8+CiAgICA8cGF0aCBkPSJNMjMgMzRoMTgiIHN0cm9rZT0iIzJkZDRiZiIgc3Ryb2tlLXdpZHRoPSIyLjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogICAgPHBhdGggZD0iTTI4IDIxaDhsNCA0LTQgNGgtOGwtNC00IDQtNFoiIGZpbGw9IiMyMmQzZWUiLz4KICAgIDxjaXJjbGUgY3g9IjMyIiBjeT0iMjUiIHI9IjIuMSIgZmlsbD0iI2VjZmVmZiIvPgogICAgPHBhdGggZD0iTTI0IDI1aC03bTIzIDBoN00yMyAyNWwtNS01bTIzIDUgNS01TTIzIDI1bC01IDVtMjMtNSA1IDUiIHN0cm9rZT0iIzY3ZThmOSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxjaXJjbGUgY3g9IjE1IiBjeT0iMTgiIHI9IjMuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYTdmM2QwIiBzdHJva2Utd2lkdGg9IjIiLz4KICAgIDxjaXJjbGUgY3g9IjQ5IiBjeT0iMTgiIHI9IjMuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYTdmM2QwIiBzdHJva2Utd2lkdGg9IjIiLz4KICAgIDxjaXJjbGUgY3g9IjE1IiBjeT0iMzIiIHI9IjMuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYTdmM2QwIiBzdHJva2Utd2lkdGg9IjIiLz4KICAgIDxjaXJjbGUgY3g9IjQ5IiBjeT0iMzIiIHI9IjMuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYTdmM2QwIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8L2c+CiAgPHBhdGggZD0iTTMxLjUgNDQuNWM0LjQtMS43IDguNyAxLjIgOC43IDUuNyAwIDQuOC00LjcgNy41LTguMiA5LjEtMy41LTEuNi04LjItNC4zLTguMi05LjEgMC00LjUgNC4zLTcuNCA4LjctNS43WiIgZmlsbD0iI2Y0M2Y1ZSIgc3Ryb2tlPSIjZmZmMWYyIiBzdHJva2Utd2lkdGg9IjEuMyIvPgogIDxwYXRoIGQ9Ik0yOS4xIDQ0LjhjMS4yLTIgNC42LTIuNSA2LjQtLjUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzg2ZWZhYyIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIyOS41IiBjeT0iNTAuNSIgcj0iMC45IiBmaWxsPSIjZmZmN2VkIi8+PGNpcmNsZSBjeD0iMzQuMiIgY3k9IjUwLjgiIHI9IjAuOSIgZmlsbD0iI2ZmZjdlZCIvPjxjaXJjbGUgY3g9IjMyIiBjeT0iNTUiIHI9IjAuOSIgZmlsbD0iI2ZmZjdlZCIvPgo8L3N2Zz4K">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AIgriculture — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef4f6;--sidebar:#0b1f2a;--card:#fff;--teal:#0d8a78;--teal-lt:#e0f4f1;
+  --teal-md:#13b3a0;--teal-dk:#096b5c;--accent:#00cdb5;--text:#0e1f27;
+  --muted:#6b8c9e;--border:#d2e8ed;--danger:#ef4444;--warn:#f59e0b;
+  --radius:16px;--shadow:0 8px 40px rgba(13,138,120,.13);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  height:100%;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+}
+
+/* ── Background ── */
+body{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;min-height:100dvh;
+  position:relative;overflow:hidden;
+  padding-top:var(--safe-top);
+  padding-bottom:var(--safe-bottom);
+}
+.bg-layer{position:fixed;inset:0;z-index:0}
+.bg-layer::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,#0b1f2a 0%,#0d3040 40%,#0b4a3a 100%);
+}
+.bg-orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.18}
+.bg-orb-1{width:600px;height:600px;top:-100px;left:-150px;background:var(--teal)}
+.bg-orb-2{width:400px;height:400px;bottom:-80px;right:-100px;background:#00cdb5}
+.bg-orb-3{width:300px;height:300px;top:40%;left:40%;background:#0ea5e9}
+.bg-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,205,181,.04) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,205,181,.04) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+/* ── Card ── */
+.card-wrap{
+  position:relative;z-index:1;
+  width:100%;max-width:420px;
+  padding:16px;
+}
+.card{
+  background:rgba(255,255,255,.97);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow),0 0 0 1px rgba(13,138,120,.1);
+  overflow:hidden;
+}
+
+/* ── Header strip ── */
+.card-header{
+  background:linear-gradient(135deg,var(--sidebar),#112d3e);
+  padding:24px 28px 22px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  border-bottom:1px solid rgba(0,205,181,.15);
+}
+.logo-ring{
+  width:58px;height:58px;border-radius:17px;
+  background:linear-gradient(135deg,var(--teal),var(--accent));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.65rem;
+  box-shadow:0 6px 20px rgba(0,205,181,.35),0 0 0 4px rgba(0,205,181,.12);
+}
+.brand-name{font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:.3px}
+.brand-name span{color:var(--accent)}
+.brand-sub{font-size:.62rem;color:rgba(255,255,255,.4);letter-spacing:2.5px;text-transform:uppercase;margin-top:-5px}
+
+/* ── Body ── */
+.card-body{padding:24px 28px 28px;display:flex;flex-direction:column;gap:18px}
+
+.welcome-text{text-align:center}
+.welcome-text h2{font-size:1.1rem;font-weight:700;color:var(--text)}
+.welcome-text p{font-size:.77rem;color:var(--muted);margin-top:4px}
+
+/* ── Form ── */
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:.76rem;font-weight:700;color:var(--text);letter-spacing:.3px}
+.field-wrap{position:relative}
+.field-wrap svg{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  color:var(--muted);pointer-events:none;flex-shrink:0;
+}
+.field input{
+  width:100%;
+  /* 48px minimum height for touch targets */
+  padding:0 48px;
+  height:48px;
+  line-height:48px;
+  border:1.5px solid var(--border);border-radius:10px;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:1rem;
+  color:var(--text);background:#fff;
+  transition:border-color .18s,box-shadow .18s;outline:none;
+  /* Prevent iOS zoom on focus (font-size >= 16px) */
+  -webkit-appearance:none;
+  appearance:none;
+}
+.field input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,138,120,.1)}
+.field input.error{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,.1)}
+.toggle-pw{
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  cursor:pointer;color:var(--muted);background:none;border:none;
+  /* Minimum 44px tap target */
+  width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.toggle-pw:hover{color:var(--teal)}
+
+/* ── Error banner ── */
+.err-banner{
+  display:none;align-items:center;gap:8px;
+  background:#fef2f2;border:1px solid #fecaca;border-radius:10px;
+  padding:12px 14px;font-size:.78rem;font-weight:600;color:#991b1b;
+}
+.err-banner.show{display:flex}
+.err-banner svg{flex-shrink:0}
+
+/* ── Rate limit banner ── */
+.warn-banner{
+  display:none;align-items:center;gap:8px;
+  background:#fffbeb;border:1px solid #fde68a;border-radius:10px;
+  padding:12px 14px;font-size:.78rem;font-weight:600;color:#92400e;
+}
+.warn-banner.show{display:flex}
+
+/* ── Submit button ── */
+.btn-login{
+  width:100%;
+  /* 52px — comfortable thumb target */
+  height:52px;
+  border:none;border-radius:11px;
+  background:linear-gradient(135deg,var(--teal),var(--teal-md));
+  color:#fff;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.95rem;font-weight:700;cursor:pointer;letter-spacing:.3px;
+  transition:all .2s;box-shadow:0 4px 16px rgba(13,138,120,.3);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  position:relative;overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.btn-login:active:not(:disabled){
+  transform:scale(.97);
+  box-shadow:0 2px 10px rgba(13,138,120,.2);
+}
+.btn-login:disabled{opacity:.65;cursor:not-allowed;}
+.btn-login .spinner{
+  width:18px;height:18px;border:2px solid rgba(255,255,255,.35);
+  border-top-color:#fff;border-radius:50%;
+  animation:spin .7s linear infinite;display:none;
+}
+.btn-login.loading .btn-text{display:none}
+.btn-login.loading .spinner{display:block}
+
+/* ── Footer ── */
+.login-footer{
+  text-align:center;padding:13px 28px 16px;
+  padding-bottom:calc(16px + var(--safe-bottom));
+  border-top:1px solid var(--border);
+  font-size:.66rem;color:var(--muted);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.login-footer svg{color:var(--teal)}
+
+/* ── Floating capsules (decorative) ── */
+.capsules{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.cap{
+  position:absolute;border-radius:40px;opacity:.06;
+  background:linear-gradient(135deg,var(--teal),var(--accent));
+}
+.cap-1{width:200px;height:60px;top:12%;left:5%;transform:rotate(-30deg);animation:float 8s ease-in-out infinite}
+.cap-2{width:140px;height:42px;top:70%;right:6%;transform:rotate(20deg);animation:float 11s ease-in-out infinite 2s}
+.cap-3{width:80px;height:24px;top:45%;left:2%;transform:rotate(-10deg);animation:float 9s ease-in-out infinite 1s}
+.cap-4{width:160px;height:48px;bottom:15%;left:30%;transform:rotate(5deg);animation:float 10s ease-in-out infinite 3s}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-30deg)}50%{transform:translateY(-16px) rotate(-30deg)}}
+
+/* ── Mobile (≤480px) ── */
+@media(max-width:480px){
+  body{
+    align-items:center;
+    padding:16px;
+    padding-top:calc(16px + var(--safe-top));
+    padding-bottom:calc(16px + var(--safe-bottom));
+  }
+  .card-wrap{
+    padding:0;
+    max-width:100%;
+    width:100%;
+  }
+  .card{
+    border-radius:20px;
+    box-shadow:0 8px 40px rgba(13,138,120,.22),0 0 0 1px rgba(13,138,120,.1);
+  }
+  .card-header{
+    padding:26px 28px 22px;
+  }
+  .logo-ring{width:60px;height:60px;border-radius:17px;font-size:1.75rem}
+  .brand-name{font-size:1.1rem}
+  .brand-sub{font-size:.65rem}
+  .card-body{padding:26px 28px 28px;gap:18px}
+  .welcome-text h2{font-size:1.15rem}
+  .welcome-text p{font-size:.82rem}
+  .field label{font-size:.82rem}
+  .field input{
+    font-size:16px; /* Prevent iOS zoom */
+    height:52px;
+  }
+  .btn-login{height:56px;font-size:1rem}
+  .login-footer{
+    padding:14px 28px;
+    padding-bottom:calc(14px + var(--safe-bottom));
+    font-size:.72rem;
+  }
+
+  /* Hide heavy bg blobs on small screens for perf */
+  .bg-orb-3,.cap-3,.cap-4{display:none}
+
+  /* Card fade-in */
+  .card{animation:fadeUp .3s cubic-bezier(.22,1,.36,1) both}
+  @keyframes fadeUp{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+}
+
+/* ── Very small phones (≤360px) ── */
+@media(max-width:360px){
+  .card-header{padding:22px 22px 18px}
+  .card-body{padding:22px 22px 24px;gap:16px}
+  .login-footer{padding:12px 22px;padding-bottom:calc(12px + var(--safe-bottom))}
+}
+
+/* ── Landscape mobile ── */
+@media(max-height:500px) and (orientation:landscape){
+  body{align-items:center}
+  .card-wrap{padding:8px;max-width:460px}
+  .card{border-radius:var(--radius)}
+  .card-header{
+    flex-direction:row;justify-content:center;
+    padding:14px 24px;gap:14px;
+  }
+  .brand-name{font-size:.95rem}
+  .brand-sub{display:none}
+  .card-body{gap:12px;padding:16px 24px 18px}
+  .welcome-text{display:none}
+  .login-footer{padding:10px 24px}
+}
+
+/* ── Dark mode ── */
+@media(prefers-color-scheme:dark){
+  .card{background:rgba(17,34,51,.97)}
+  .card-body{color:#d4eef5}
+  .welcome-text h2{color:#d4eef5}
+  .field label{color:#9ed4e0}
+  .field input{background:#0d1b24;border-color:#1a3347;color:#d4eef5}
+  .field input:focus{border-color:var(--teal)}
+  .field input.error{border-color:var(--danger)}
+  .login-footer{border-color:#1a3347;color:#4a7e92}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-layer">
+  <div class="bg-grid"></div>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+</div>
+
+<div class="capsules">
+  <div class="cap cap-1"></div>
+  <div class="cap cap-2"></div>
+  <div class="cap cap-3"></div>
+  <div class="cap cap-4"></div>
+</div>
+
+<div class="card-wrap">
+  <div class="card">
+
+    <div class="card-header">
+      <div class="logo-ring" style="background:none;box-shadow:0 6px 20px rgba(0,205,181,.35),0 0 0 4px rgba(0,205,181,.12);padding:0;overflow:hidden;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AIgriculture">
+  <defs>
+    <linearGradient id="bg" x1="9" y1="7" x2="55" y2="57" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="0.52" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="18" y1="11" x2="47" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#062331"/>
+      <stop offset="1" stop-color="#083a35"/>
+    </linearGradient>
+    <filter id="soft" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#042f2e" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="17" fill="url(#bg)"/>
+  <circle cx="50" cy="13" r="5.5" fill="#facc15" opacity="0.98"/>
+  <path d="M12 48c9.8-4.6 28.9-4.6 40 0" fill="none" stroke="#d9f99d" stroke-width="3.2" stroke-linecap="round" opacity="0.92"/>
+  <path d="M16 54c7.8-3 23.7-3.1 32 0" fill="none" stroke="#bbf7d0" stroke-width="2.2" stroke-linecap="round" opacity="0.72"/>
+  <g filter="url(#soft)">
+    <circle cx="32" cy="30" r="20" fill="url(#panel)" opacity="0.96"/>
+    <path d="M20 41c7.5-3.4 17.2-3.4 24 0" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+    <path d="M23 34h18" stroke="#2dd4bf" stroke-width="2.3" stroke-linecap="round"/>
+    <path d="M28 21h8l4 4-4 4h-8l-4-4 4-4Z" fill="#22d3ee"/>
+    <circle cx="32" cy="25" r="2.1" fill="#ecfeff"/>
+    <path d="M24 25h-7m23 0h7M23 25l-5-5m23 5 5-5M23 25l-5 5m23-5 5 5" stroke="#67e8f9" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="15" cy="18" r="3.2" fill="none" stroke="#a7f3d0" stroke-width="2"/>
+    <circle cx="49" cy="18" r="3.2" fill="none" stroke="#a7f3d0" stroke-width="2"/>
+    <circle cx="15" cy="32" r="3.2" fill="none" stroke="#a7f3d0" stroke-width="2"/>
+    <circle cx="49" cy="32" r="3.2" fill="none" stroke="#a7f3d0" stroke-width="2"/>
+  </g>
+  <path d="M31.5 44.5c4.4-1.7 8.7 1.2 8.7 5.7 0 4.8-4.7 7.5-8.2 9.1-3.5-1.6-8.2-4.3-8.2-9.1 0-4.5 4.3-7.4 8.7-5.7Z" fill="#f43f5e" stroke="#fff1f2" stroke-width="1.3"/>
+  <path d="M29.1 44.8c1.2-2 4.6-2.5 6.4-.5" fill="none" stroke="#86efac" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="29.5" cy="50.5" r="0.9" fill="#fff7ed"/><circle cx="34.2" cy="50.8" r="0.9" fill="#fff7ed"/><circle cx="32" cy="55" r="0.9" fill="#fff7ed"/>
+</svg></div>
+      <div style="text-align:center">
+        <div class="brand-name">AI<span>griculture</span></div>
+        <div class="brand-sub">Strawberry Monitoring</div>
+      </div>
+    </div>
+
+    <div class="card-body">
+
+      <div class="welcome-text">
+        <h2>Welcome back 👋</h2>
+        <p>Sign in to access your farm dashboard</p>
+      </div>
+
+      <div class="err-banner" id="err-banner">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="err-text">Invalid credentials.</span>
+      </div>
+
+      <div class="warn-banner" id="warn-banner">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span id="warn-text">Too many attempts. Please wait.</span>
+      </div>
+
+      <div class="field">
+        <label for="username">Username</label>
+        <div class="field-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="username" name="username" placeholder="Admin"
+                 autocomplete="username" spellcheck="false" autocapitalize="off"
+                 inputmode="text"
+                 onkeydown="if(event.key==='Enter')focusPw()">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="field-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <input type="password" id="password" name="password" placeholder="•••••••"
+                 autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter')doLogin()">
+          <button type="button" class="toggle-pw" id="toggle-pw" onclick="togglePw()" title="Show/hide password" aria-label="Toggle password visibility">
+            <svg id="eye-icon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn-login" id="login-btn" onclick="doLogin()">
+        <span class="btn-text">Sign In</span>
+        <div class="spinner"></div>
+      </button>
+
+    </div>
+
+    <div class="login-footer">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      © 2026 <a href="aigriculture.in">www.aigriculture.in </a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let _lockUntil = 0;
+
+function focusPw(){document.getElementById('password').focus();}
+
+function togglePw(){
+  const inp = document.getElementById('password');
+  const icon = document.getElementById('eye-icon');
+  if(inp.type==='password'){
+    inp.type='text';
+    icon.innerHTML='<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    inp.type='password';
+    icon.innerHTML='<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
+function showErr(msg){
+  const b=document.getElementById('err-banner');
+  document.getElementById('err-text').textContent=msg;
+  b.classList.add('show');
+  document.getElementById('warn-banner').classList.remove('show');
+  ['username','password'].forEach(id=>document.getElementById(id).classList.add('error'));
+}
+
+function showWarn(msg){
+  const b=document.getElementById('warn-banner');
+  document.getElementById('warn-text').textContent=msg;
+  b.classList.add('show');
+  document.getElementById('err-banner').classList.remove('show');
+}
+
+function clearState(){
+  document.getElementById('err-banner').classList.remove('show');
+  document.getElementById('warn-banner').classList.remove('show');
+  ['username','password'].forEach(id=>document.getElementById(id).classList.remove('error'));
+}
+
+async function doLogin(){
+  if(_lockUntil > Date.now()){
+    showWarn(`Too many attempts. Try again in ${Math.ceil((_lockUntil-Date.now())/1000)}s.`);
+    return;
+  }
+  clearState();
+  const un = document.getElementById('username').value.trim();
+  const pw = document.getElementById('password').value;
+  if(!un){document.getElementById('username').focus();return;}
+  if(!pw){document.getElementById('password').focus();return;}
+
+  const btn = document.getElementById('login-btn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('username', un);
+    fd.append('password', pw);
+    const res = await fetch('/auth/login', {method:'POST', body: fd});
+    const data = await res.json();
+
+    if(res.ok && data.ok){
+      btn.classList.remove('loading');
+      btn.innerHTML = '<span style="font-size:1.1rem">✅</span><span>Redirecting…</span>';
+      window.location.href = '/';
+    } else if(res.status === 429){
+      _lockUntil = Date.now() + 15 * 60 * 1000;
+      showWarn(data.error || 'Too many attempts. Try again in 15 minutes.');
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    } else {
+      showErr(data.error || 'Invalid credentials.');
+      document.getElementById('password').value = '';
+      document.getElementById('password').focus();
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  } catch(e){
+    showErr('Network error — check your connection.');
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+// Only auto-focus on non-touch devices (avoids keyboard popping up on mobile load)
+window.addEventListener('DOMContentLoaded', () => {
+  if(window.matchMedia('(pointer:fine)').matches){
+    document.getElementById('username').focus();
+  }
+});
+</script>
+</body>
+</html>

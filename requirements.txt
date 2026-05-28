@@ -1,13 +1,18 @@
-# AIgriculture — default (NON-Hailo) dependencies. Runs on a plain Raspberry Pi.
-# Install:  pip install -r requirements.txt
+# AIgriculture — runtime dependencies.
+# Tested with the Pi's native Python interpreter (currently 3.13.x).
+# Install:  pip install -r requirements.txt --break-system-packages
+#        or use the docker-compose stack so you don't have to.
 
 # ── Web dashboard / API ────────────────────────────────────────────────────
 fastapi>=0.110
 uvicorn[standard]>=0.27
 python-multipart>=0.0.9
 PyJWT>=2.8
+passlib[bcrypt]>=1.7
 bcrypt>=4.1
 PyYAML>=6.0
+requests>=2.31
+pymysql>=1.1                # MySQL/MariaDB connector (users + sessions)
 
 # ── Vision (CPU) ───────────────────────────────────────────────────────────
 opencv-python>=4.9
@@ -22,6 +27,7 @@ reportlab>=4.1             # 48-hour PDF farm report
 
 # ── Comms (optional features) ──────────────────────────────────────────────
 meshtastic>=2.3            # LoRa bridge (only needed if MESH_ENABLED=true)
+pypubsub>=4.0              # event bus used by the meshtastic bridge
 
 # ── Raspberry Pi hardware (no-ops off-Pi; imports are guarded in code) ───────
 lgpio>=0.2                 # relays + buzzers

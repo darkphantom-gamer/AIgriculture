@@ -2,16 +2,17 @@
 
 # 🌱 AIgriculture
 
-**Raspberry Pi के लिए ओपन-सोर्स स्मार्ट फार्म सिस्टम**
-मिट्टी की नमी की निगरानी करें, सिंचाई स्वचालित करें, बीमारी का पता लगाएं, और AI से बात करें — सब कुछ एक वेब डैशबोर्ड से।
+**Raspberry Pi के लिए ओपन-सोर्स स्मार्ट फार्म सिस्टम।**
+मिट्टी की नमी पर नज़र रखें, सिंचाई स्वचालित करें, रोगों का पता लगाएं और AI से बात करें — सब कुछ एक वेब डैशबोर्ड से।
 
 [![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](README.md)
 [![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.ja.md)
 [![हिन्दी](https://img.shields.io/badge/lang-हिन्दी-orange?style=for-the-badge)](README.hi.md)
 [![Русский](https://img.shields.io/badge/lang-Русский-green?style=for-the-badge)](README.ru.md)
+[![中文](https://img.shields.io/badge/lang-中文-red?style=for-the-badge)](README.zh.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed)](https://docs.docker.com/)
 
@@ -19,159 +20,276 @@
 
 ---
 
-![फार्म दृश्य](docs/assets/big_farm.jpeg)
+![फार्म दृश्य](docs/assets/small_prototype.jpeg)
 
 ---
 
-## क्या-क्या मिलता है
+## यह क्या करता है
 
-| सबसिस्टम | विवरण |
-|----------|-------|
-| **सिंचाई** | 8-पौधों की बर्स्ट सिंचाई — 45% पर चालू, 65% पर बंद, 70% हार्डलॉक |
-| **FarmMonitor** | YOLO से नियमित स्कैन — 5 बीमारियाँ और 5 पकने की अवस्थाएं; ईमेल अलर्ट |
-| **सुरक्षा कैमरा** | रियल-टाइम व्यक्ति/पशु पहचान, दोहरा बजर साइरन, MJPEG स्ट्रीम |
-| **FLORA AI** | Groq / Cerebras / Mistral / Gemini चैट असिस्टेंट; ऑफलाइन सपोर्ट |
-| **Meshtastic** | LoRa ब्रिज — मेश नेटवर्क से FLORA से बात करें |
-| **डैशबोर्ड** | डार्क-थीम सिंगल-पेज ऐप (अवलोकन, कैमरा, AI, इवेंट्स, सेटिंग्स) |
-
----
-
-## हार्डवेयर
-
-![प्रोटोटाइप](docs/assets/small_prototype.jpeg)
-
-| घटक | विवरण |
-|-----|-------|
-| Raspberry Pi 4/5 | 2GB+ RAM, 64-bit OS Bookworm |
-| ADS1115 × 2 | I2C ADC (0x48, 0x49) — 8 नमी चैनल |
-| 8-चैनल रिले बोर्ड | Active LOW, BCM 17 27 22 23 5 6 13 19 |
-| बजर × 2 | BCM 18, 12 (2700 Hz) |
-| Pi Camera × 2 | CSI — सुरक्षा (csi:0) + FarmMonitor (csi:1) |
-| *(वैकल्पिक)* Hailo-8 M.2 | हार्डवेयर AI एक्सेलेरेटर |
-
-पूरा वायरिंग नक्शा [`aigriculture.txt`](aigriculture.txt) में है।
+| उप-तंत्र | आपको क्या मिलता है |
+|----------|---------------------|
+| **सिंचाई** | 8-पौधे बर्स्ट इरीगेशन के साथ ऑटो-मोड (45 % नमी पर शुरू, 65 % पर रुकना, 70 % पर हार्डलॉक) |
+| **FarmMonitor** | समय-समय पर YOLO स्कैन — रोग (5 क्लास) और पकने की अवस्था (5 स्टेज), पकड़ने पर ईमेल अलर्ट |
+| **सिक्योरिटी कैमरा** | रियल-टाइम मानव/जानवर डिटेक्शन, डुअल-बज़र सायरन, डैशबोर्ड में MJPEG स्ट्रीम |
+| **FLORA AI** | मल्टी-प्रोवाइडर चैट असिस्टेंट (Groq / Cerebras / Mistral / Gemini), फार्म टूल कॉल, ऑफ़लाइन फॉलबैक |
+| **Meshtastic** | LoRa ब्रिज — FLORA आपकी मेश नेटवर्क पर किसी भी चैनल या DM का जवाब देती है |
+| **डैशबोर्ड** | डार्क थीम सिंगल-पेज ऐप: ओवरव्यू, कैमरा, AI चैट, इवेंट लॉग, सेटिंग्स |
 
 ---
 
-## 🚀 त्वरित शुरुआत
+## 🛠️ हार्डवेयर — शुरुआती / टेस्टिंग बिल्ड
+
+असली फार्म नहीं है? **कोई बात नहीं।** यह सबसे छोटी किट है जो AIgriculture को डेस्क-टॉप प्रोटोटाइप बना देती है। नीचे की हर पंक्ति शुरुआती-अनुकूल विकल्प है।
+
+| # | कंपोनेंट | क्यों ज़रूरी है | शुरुआती टिप |
+|---|---------|-----------------|----------------|
+| 1 | **Raspberry Pi 4 / 5** (4 GB+, 8 GB सुझाव)<br><img src="docs/assets/hardware/Raspberrypi_5.png" width="240"> | पूरा सिस्टम — डैशबोर्ड, AI, सिंचाई लॉजिक — यही चलाता है। | Pi 5 सबसे तेज़ है, पर Pi 4 (2 GB) भी काम करेगा। **Raspberry Pi OS Bookworm 64-bit** फ्लैश करें। |
+| 2 | **ADS1115 16-bit I²C ADC**<br><img src="docs/assets/hardware/adc_module.png" width="240"> | Pi में एनालॉग इनपुट नहीं होता। कैपेसिटिव नमी सेंसर एनालॉग होते हैं, ADC उन्हें संख्याओं में बदलता है। | एक ADS1115 = 4 सेंसर। डिफ़ॉल्ट 8-पौधे बिल्ड के लिए **दो** (`0x48` + `0x49`), 16 पौधों तक **चार** (`0x48`-`0x4B`)। |
+| 3 | **कैपेसिटिव मिट्टी नमी सेंसर**<br><img src="docs/assets/hardware/moisture_sensor.png" width="240"> | मिट्टी कितनी गीली है, ये पढ़ता है — ऑटो-सिंचाई का इनपुट। | **कैपेसिटिव** (पीला PCB) ही लें, सस्ते रेज़िस्टिव वाले हफ़्तों में जंग पकड़ लेते हैं। हर पौधे के लिए एक। |
+| 4 | **8-चैनल रिले बोर्ड** (active-LOW, opto-isolated)<br><img src="docs/assets/hardware/relay_module.png" width="240"> | पंपों को ON/OFF करने देता है। Pi ख़ुद से पंप की पावर नहीं दे सकता। | **5V ट्रिगर, ऑप्टो-आइसोलेटेड** लिखा हो — वरना 3.3V पिन से काम नहीं करेगा। |
+| 5 | **छोटा 5V या 12V DC वॉटर पंप**<br><img src="docs/assets/hardware/water_pump.png" width="240"> | असली में पौधे को पानी यही देता है। | हर पौधे के लिए एक। **हमेशा अलग पावर सप्लाई दें, Pi के 5V रेल से कभी नहीं।** Pi सिर्फ़ रिले कंट्रोल करता है। |
+| 6 | **Raspberry Pi कैमरा (CSI)** *या* **USB वेबकैम**<br><img src="docs/assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="docs/assets/hardware/usb_camera.png" width="200"> | एक से FarmMonitor रोग/पकने का स्कैन, दूसरे से सिक्योरिटी कैमरा। | एक कैमरे से भी शुरू कर सकते हैं — `--security-camera` पास करें, `--farm-camera` छोड़ दें। RTSP IP कैमरा भी चलेगा। |
+| 7 | **ब्रेडबोर्ड + जंपर वायर**<br><img src="docs/assets/hardware/breadboard_and_jumper_wires.png" width="240"> | बिना सोल्डरिंग के सब जोड़ने के लिए। | सेंसर से ADC के लिए female-to-female, ADC से Pi के लिए male-to-female जंपर लें। |
+| **+** | **Hailo-10H AI HAT** *(वैकल्पिक, तेज़ विज़न)*<br><img src="docs/assets/hardware/hailo10h_optional.png" width="240"> | हार्डवेयर-एक्सेलरेटेड YOLO इन्फरेंस। रोग/पकने स्कैन का समय बहुत कम। | **शुरुआती बिल्ड में छोड़ें।** साधारण Pi पर CPU रास्ता भी अच्छा चलता है। बस तेज़ चाहिए तब लें। |
+| **+** | **Meshtastic LoRa रेडियो** *(वैकल्पिक, ऑफ़-ग्रिड चैट)*<br><img src="docs/assets/hardware/LORA_chip_with_433hz_antenna.png" width="240"> | Wi-Fi की पहुँच से बाहर हों तब भी LoRa मेश पर FLORA से बात करें। | वैकल्पिक। Heltec / LilyGo बोर्ड और 433 / 868 / 915 MHz एंटीना चलेंगे। केवल वेब UI काफ़ी है तो छोड़ दें। |
+
+**मिनिमम टेस्टिंग बिल्ड** (केवल डेस्क पर डैशबोर्ड चलाने के लिए):
+> 1 × Pi · 1 × ADS1115 · 1 × नमी सेंसर · 1 × USB कैमरा। बस। न रिले, न पंप, न Hailo। डैशबोर्ड चलने पर "+ Add sensors" बटन से और बढ़ा सकते हैं।
+
+---
+
+## 🚀 जल्दी शुरुआत
 
 ```bash
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
-cp .env.example .env   # फिर .env को संपादित करें (नीचे देखें)
+cp .env.example .env            # फिर .env एडिट करें (अगला सेक्शन देखें)
 docker compose up -d
 ```
 
 ब्राउज़र में `http://<pi-ip>:8000` खोलें।
 
-> Pi नहीं है? कोई बात नहीं। GPIO और I2C चुपचाप no-op हो जाते हैं — डैशबोर्ड, AI चैट, और USB/नेटवर्क कैमरे लैपटॉप पर भी काम करते हैं।
+> **लैपटॉप / Non-Pi पर चला रहे हैं?** चलेगा। हार्डवेयर न होने पर GPIO/I2C ख़ामोशी से no-op कर देते हैं — डैशबोर्ड, AI चैट, और (USB/नेटवर्क) कैमरे फिर भी काम करेंगे।
 
-नेटिव इंस्टॉल, systemd सेवा और Hailo के लिए [docs/SETUP.md](docs/SETUP.md) देखें।
+> **नेटिव इंस्टॉल चाहिए?**
+> ```bash
+> pip install -r requirements.txt --break-system-packages
+> python plantwatch.py
+> ```
 
 ---
 
-## 🔑 अपनी क्रेडेंशियल खुद जोड़ें
+## 🔑 आपको अपने क्रेडेंशियल डालने हैं
 
-**इस रिपॉजिटरी में कोई असली API कुंजी, पासवर्ड या ईमेल नहीं है — यह जानबूझकर है।**
-`cp .env.example .env` के बाद `.env` खोलें और अपनी जानकारी भरें:
+**इस रिपो में कोई असली API की, पासवर्ड या ईमेल नहीं है — यह डिज़ाइन से ऐसा है।**
+`cp .env.example .env` के बाद `.env` खोलें और अपनी जानकारी डालें:
 
-| `.env` फ़ील्ड | क्या भरें | कहाँ से लें |
-|---------------|---------|-----------|
-| `ADMIN_USER` | डैशबोर्ड यूज़रनेम | (आप तय करें) |
-| `ADMIN_PASS` | मज़बूत पासवर्ड | (आप तय करें) — खाली छोड़ने पर पहली बार रैंडम पासवर्ड कंसोल पर दिखेगा |
-| `GROQ_API_KEY` | Groq कुंजी (सिफ़ारिश की गई, मुफ़्त, तेज़) | https://console.groq.com |
-| `CEREBRAS_API_KEY` | Cerebras कुंजी (वैकल्पिक) | https://cloud.cerebras.ai |
-| `MISTRAL_API_KEY` | Mistral कुंजी (वैकल्पिक) | https://console.mistral.ai |
-| `GEMINI_API_KEY` | Google AI Studio कुंजी (वैकल्पिक) | https://aistudio.google.com |
+| `.env` में | क्या डालें | कहाँ से लें |
+|------------|-------------|-------------|
+| `ADMIN_USER` | जो भी डैशबोर्ड यूज़रनेम चाहें | (आपका चुनाव) |
+| `ADMIN_PASS` | मज़बूत पासवर्ड | (आपका चुनाव) |
+| `GROQ_API_KEY` | आपकी Groq की (सुझाव — तेज़, मुफ़्त) | https://console.groq.com |
+| `CEREBRAS_API_KEY` | आपकी Cerebras की (वैकल्पिक) | https://cloud.cerebras.ai |
+| `MISTRAL_API_KEY` | आपकी Mistral की (वैकल्पिक) | https://console.mistral.ai |
+| `GEMINI_API_KEY` | आपकी Google AI Studio की (वैकल्पिक) | https://aistudio.google.com |
 
-**किसी एक भी** AI प्रदाता की कुंजी जोड़ने पर FLORA फ़ुल टूल-यूज़ चैट करता है। सब खाली रखें तो FLORA कीवर्ड-आधारित ऑफ़लाइन मोड में काम करता है।
+**कोई एक** AI प्रोवाइडर सेट करें तो FLORA पूरी टूल-कॉलिंग चैट देती है। सब खाली रहें तब भी FLORA कीवर्ड रूटिंग से ऑफ़लाइन काम करती है।
 
-**ईमेल अलर्ट** के लिए (FarmMonitor बीमारी अलर्ट / FLORA रिपोर्ट):
+**ईमेल अलर्ट** (FarmMonitor रोग सूचना, FLORA रिपोर्ट) चाहिए तो:
 ```bash
-cp config.example.yaml config.yaml      # फिर संपादित करें
+cp config.example.yaml config.yaml      # फिर config.yaml एडिट करें
 ```
 
-`config.yaml` में अपना SMTP भरें — Gmail (**ऐप पासवर्ड** के साथ), Hostinger, या कोई भी SMTP सेवा:
+`config.yaml` में अपना SMTP डालें — Gmail (*app password* के साथ), Hostinger, स्कूल मेल, कुछ भी जो SMTP बोलता हो:
 
 ```yaml
 smtp:
-  host: smtp.gmail.com
+  host: smtp.gmail.com          # या smtp.hostinger.com, smtp.office365.com, आदि
   port: 587
-  email: you@your-domain.com
-  password: your-app-password   # सामान्य पासवर्ड नहीं — ऐप पासवर्ड
+  email: you@your-domain.com    # आपका असली ईमेल
+  password: your-app-password   # साधारण पासवर्ड नहीं — app password
   from_email: you@your-domain.com
 notifications:
   to_email: alerts@your-domain.com
 ```
 
-> **Gmail सलाह:** 2-स्टेप वेरिफ़िकेशन चालू करें, फिर https://myaccount.google.com/apppasswords से App Password बनाएँ।
+> **Gmail टिप:** 2-Step Verification चालू करें, फिर https://myaccount.google.com/apppasswords से **App Password** बनाएं और पेस्ट करें। साधारण पासवर्ड को SMTP स्वीकार नहीं करता।
 
-`.env` और `config.yaml` दोनों `.gitignore` में हैं — आपके असली पासवर्ड कभी रेपो में नहीं जाएंगे।
+`.env` और `config.yaml` दोनों git-ignored हैं — आपके राज़ रिपो में नहीं जाते।
 
 ---
 
-## 🔌 वायरिंग (एक फ़ाइल बदलें)
+## 🔌 वायरिंग (एक फ़ाइल बदल कर अपना बोर्ड फिट करें)
 
-डिफ़ॉल्ट पिन मैप:
+डिफ़ॉल्ट पिन मैप (`plantwatch.py` के साथ आता है):
 
-| भाग | डिफ़ॉल्ट BCM पिन |
-|----|------|
-| 8 पंप रिले | `17, 27, 22, 23, 5, 6, 13, 19` (Active LOW) |
-| 2 बजर | `18, 12` (2700 Hz) |
-| नमी सेंसर | ADS1115 × 2, `0x48` व `0x49` पर |
+| कंपोनेंट | डिफ़ॉल्ट BCM पिन |
+|---------|------------------|
+| 8 पंप रिले (पौधे A → H) | `17, 27, 22, 23, 5, 6, 13, 19` (active LOW) |
+| 2 बज़र सायरन | `18, 12` (2700 Hz) |
+| 8 नमी सेंसर | ADS1115 × 2, I²C `0x48` और `0x49` पर |
+| I²C बस | `/dev/i2c-1` |
+| GPIO चिप | `/dev/gpiochip0` (Pi 5 के लिए `4` ऑटो-ट्राय) |
 
-**अलग पिन उपयोग के लिए Python छूना ज़रूरी नहीं:**
+**अलग पिन चाहिए?** Python छूने की ज़रूरत **नहीं**:
 
 ```bash
-cp wiring.example.yaml wiring.yaml      # फिर संपादित करें
+cp wiring.example.yaml wiring.yaml      # फिर wiring.yaml एडिट करें
+# Docker के लिए docker-compose.yml में wiring.yaml वॉल्यूम भी अनकमेंट करें।
 docker compose up -d --force-recreate
 ```
+
+`wiring.yaml` से कोई भी पिन, active-high/low, बज़र की संख्या या फ्रीक्वेंसी, और नमी कैलिब्रेशन बिना कोड छुए बदलें।
 
 ---
 
 ## डैशबोर्ड
 
-![डैशबोर्ड](docs/assets/dashboard_status.png)
+![डैशबोर्ड स्थिति](docs/assets/dashboard_status.png)
 
-पाँच टैब: **अवलोकन** (लाइव नमी + पंप नियंत्रण), **कैमरा** (MJPEG स्ट्रीम), **FLORA** (AI चैट), **इवेंट्स** (अलर्ट लॉग), **सेटिंग्स** (नोटिफिकेशन + साइरन)।
+पाँच टैब: **Overview** (लाइव नमी + पंप कंट्रोल), **Cameras** (MJPEG स्ट्रीम), **FLORA** (AI चैट), **Events** (अलर्ट लॉग), **Settings** (नोटिफिकेशन + सायरन)।
 
 ---
 
 ## FLORA AI असिस्टेंट
 
-![FLORA](docs/assets/FLORA_preview.jpeg)
+![FLORA प्रीव्यू](docs/assets/FLORA_preview.jpeg)
 
-FLORA प्राकृतिक भाषा के आदेश समझती है:
+FLORA साधारण भाषा के आदेश समझती है:
 
 - *"पौधे A को पानी दो"* → बर्स्ट सिंचाई शुरू
-- *"सभी पौधों की नमी बताओ"* → सभी सेंसर पढ़ता है
-- *"कोई बीमारी मिली है क्या?"* → ताजा FarmMonitor स्कैन जाँचता है
+- *"सभी पौधों की नमी क्या है?"* → सारे सेंसर पढ़ती है
+- *"C का पंप बंद करो"* → पंप C बंद
+- *"क्या कोई रोग पाया गया?"* → नवीनतम FarmMonitor स्कैन देखती है
 
-API कुंजी के बिना भी FLORA कीवर्ड रूल्स से ऑफलाइन काम करती है।
+कोई API की न हो तब भी FLORA कीवर्ड रूटिंग से पूरी तरह ऑफ़लाइन काम करती है।
+
+### आर्किटेक्चर
+
+| लेयर | भूमिका |
+|------|--------|
+| ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | प्रोवाइडर रूटिंग + फॉलबैक |
+| ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | टूल डिस्पैच (सेंसर, पंप, कैमरा, शेड्यूलर) |
+| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | FLORA की रीज़निंग और इंटीग्रेशन |
 
 ---
 
 ## FarmMonitor
 
-![FarmMonitor](docs/assets/Farm_Monitor_Core_Architecture.png)
+![FarmMonitor आर्किटेक्चर](docs/assets/Farm_Monitor_Core_Architecture.png)
 
-निर्धारित समय पर पूरे खेत का स्कैन — धुंधले फ्रेम हटाकर बीमारी और पकने का विश्लेषण।
+शेड्यूल पर पूरे खेत की स्कैन चलाता है। फ्रेम के बैच लेता है, धुंधले हटाता है, फिर रोग और पकने की डिटेक्शन करता है।
 
-![परिणाम](docs/assets/Farm_Monitor_Result.png)
+![FarmMonitor परिणाम](docs/assets/Farm_Monitor_Result.png)
+
+परिणाम `runtime/farmmonitor/` में JSON + JPEG के रूप में सेव होते हैं। रोग दिखने पर और SMTP सेट हो तो ईमेल अलर्ट जाता है।
+
+---
+
+## सिक्योरिटी कैमरा
+
+![सिक्योरिटी कैमरा परिणाम](docs/assets/Security_camera_result.png)
+
+फ्रेम-स्किप इन्फरेंस (हर N फ्रेम) और क्लास allow-list से CPU हल्का रहता है। ख़तरा मिले तो सायरन 8 सेकंड बजती है और स्नैपशॉट सेव होता है।
+
+---
+
+## Meshtastic LoRa ब्रिज
+
+![Meshtastic](docs/assets/MEshtastic.png)
+
+`.env` में `MESH_ENABLED=true` करें और `MESH_HOST` को अपने नोड पर सेट करें। FLORA किसी भी चैनल या DM पर सुनती है और भेजने वाले को ही उत्तर देती है — पूरी तरह ऑफ़-ग्रिड चलता है।
+
+---
+
+## स्टोरेज
+
+![Storage](docs/assets/Storage_Data_screenshot.png)
+
+सभी कैप्चर फ्रेम, फ़ार्म स्कैन और सिक्योरिटी स्नैपशॉट डैशबोर्ड के Events टैब और स्टोरेज API से ब्राउज़ किए जा सकते हैं।
 
 ---
 
 ## कैमरा विकल्प
 
 ```bash
-# Pi CSI कैमरा
-python -m aigriculture --security-camera csi:0 --farm-camera csi:1
+# Raspberry Pi CSI कैमरा (--input से)
+python plantwatch.py --input csi:0
 
 # USB कैमरा
-python -m aigriculture --security-camera /dev/video0
+python plantwatch.py --input /dev/video0
 
-# नेटवर्क RTSP कैमरा
-python -m aigriculture --security-camera rtsp://192.168.1.10/live
+# नेटवर्क / RTSP कैमरा
+python plantwatch.py --input rtsp://user:pass@192.168.1.10/live
+```
+
+Docker में `docker-compose.yml` की संबंधित `command:` लाइन अनकमेंट करें।
+
+---
+
+## 🧠 अपना ML मॉडल लगाएं
+
+रोग और पकने डिटेक्टर बस **Ultralytics YOLO `.pt` फ़ाइलें** हैं।
+अपनी फ़सल पर ट्रेन करें, `plantwatch.py` के पास `models/` फ़ोल्डर में डालें — हो गया।
+
+```bash
+# डिफ़ॉल्ट फ़ाइलें FarmMonitor की working directory में हैं।
+# अपनी .pt से रिप्लेस करें और अगले स्कैन से उपयोग होगा:
+cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
+cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
+```
+
+**सिक्योरिटी कैमरा** के लिए `.env` में `PLANTWATCH_SECURITY_HEF` को अपनी `.hef` फ़ाइल पर सेट करें (Hailo)। न हो तो CPU YOLO डिफ़ॉल्ट चलता है।
+
+स्ट्रॉबेरी के साथ शिप किए मॉडल बस शुरुआत हैं, कठोर आवश्यकता नहीं।
+
+---
+
+## Hailo (वैकल्पिक)
+
+```bash
+# पहले HailoRT SDK इंस्टॉल करें, फिर Hailo फ्लैग्स के साथ चलाएं:
+python plantwatch.py --input /dev/video0 --arch hailo10h --use-frame
+```
+
+---
+
+## CLI रिफरेंस
+
+```
+python plantwatch.py [options]
+
+  --input             कैमरा इनपुट (csi:N | /dev/videoN | rtsp://... | path)
+  --arch              hailo10h | cpu (डिफ़ॉल्ट: cpu)
+  --use-frame         Hailo के पर-फ्रेम कॉलबैक का उपयोग (Hailo के लिए)
+  --use-rpicam        picamera2 (libcamera) कैप्चर पाथ
+```
+
+बाकी सब (पोर्ट, JPEG क्वालिटी, FPS, सिक्योरिटी HEF पाथ) एनवायरनमेंट वैरिएबल हैं — `.env.example` देखें।
+
+---
+
+## प्रोजेक्ट संरचना
+
+```
+AIgriculture/
+├── plantwatch.py                       # मुख्य ऐप: डैशबोर्ड + सेंसर + सिंचाई
+├── dashboard_sample.html               # डैशबोर्ड (सिंगल-पेज ऐप)
+├── login.html                          # लॉगिन स्क्रीन
+├── farm_monitor_designer_email.py      # ब्रांडेड अलर्ट ईमेल टेम्पलेट
+├── farm_monitor_pt_scan.py             # रोग + पकने .pt स्कैनर
+├── farm_monitor_disease_labels.json    # रोग YOLO क्लास लेबल
+├── farm_monitor_ripeness_labels.json   # पकने YOLO क्लास लेबल
+├── flora_agent.py / flora_config.py    # FLORA AI असिस्टेंट
+├── flora_report.py / flora_scheduler.py / flora_tools.py
+├── meshtastic_flora_bridge.py          # LoRa ब्रिज
+├── docs/assets/                        # README में उपयोग की गई इमेज
+├── .env.example                        # ← .env में कॉपी करके एडिट
+├── config.example.yaml                 # ← config.yaml में कॉपी (ईमेल के लिए)
+├── wiring.example.yaml                 # ← wiring.yaml में कॉपी (कस्टम पिन)
+├── docker-compose.yml
+├── Dockerfile
+└── requirements.txt
 ```
 
 ---

@@ -1,27 +1,31 @@
-# AIgriculture — application & email config template.
-# Copy to "config.yaml" and edit:  cp config.example.yaml config.yaml
-# config.yaml is git-ignored so your real settings never get committed.
+# AIgriculture · example config
+# ------------------------------
+# Copy this file to `config.yaml` and fill in your own values.
+# `config.yaml` is git-ignored, so your secrets never leave the Pi.
+#
+# Tip: you can also put any of these under environment variables —
+# the app reads env first, then this file, then sensible defaults.
 
-# ─── Email alerts (optional) ───────────────────────────────────────────────
-# Used for FarmMonitor disease/ripeness alerts and FLORA PDF reports.
-# Any SMTP provider works (Gmail app-password, Hostinger, etc.).
 smtp:
-  host: smtp.example.com
+  # Use Gmail (App Password) or any SMTP server you trust (Hostinger, SES, etc.)
+  host: smtp.gmail.com
   port: 587
-  email: you@example.com
-  password: your-smtp-app-password
-  from_email: you@example.com
+  email: ${SMTP_EMAIL}              # your sending address
+  password: ${SMTP_PASSWORD}        # Gmail App Password (16 chars, no spaces) or SMTP password
+  from_email: ${SMTP_EMAIL}         # usually the same as `email`
 
 notifications:
-  to_email: alerts@example.com
+  # Where alert / report emails are delivered.
+  to_email: ${NOTIFY_EMAIL}
 
-# ─── App / camera / scan tuning ────────────────────────────────────────────
 app:
+  # Public URL of your dashboard. Used inside email links.
   dashboard_url: http://localhost:8000
-  conf_thresh: 0.45         # detection confidence threshold (0-1)
-  batch_size: 8             # frames per FarmMonitor scan batch
-  capture_interval_sec: 2   # seconds between captured frames
-  batch_period_sec: 3600    # seconds between scheduled scans
-  blur_threshold: 100       # reject blurry frames below this (Laplacian var)
-  brightness_min: 40        # reject too-dark frames
-  brightness_max: 220       # reject blown-out frames
+  camera_id: 0                  # /dev/video0 by default — see --input flag
+  conf_thresh: 0.4
+  batch_size: 10
+  capture_interval_sec: 0.2
+  batch_period_sec: 12
+  blur_threshold: 35.0
+  brightness_min: 35.0
+  brightness_max: 225.0
