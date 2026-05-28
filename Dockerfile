@@ -1,8 +1,8 @@
 # AIgriculture — production image.
-# Uses the same Python interpreter family the Pi ships with (3.13).
+# Pinned to Python 3.13 to match the Pi's native interpreter (Bookworm ships 3.13).
 # Multi-arch: builds clean for linux/arm64 (Pi 5) AND linux/amd64 (laptops).
 
-FROM python:3-slim-bookworm
+FROM python:3.13-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -10,18 +10,26 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # ── System packages ──────────────────────────────────────────────────────
-# - libgl1 / libglib2.0-0 are required by opencv
-# - libgpiod2 lets lgpio find a chip on hosts that wire it up via /dev/gpiochip*
-# - mariadb-client is just nice to have for `docker compose exec` debugging
+# Runtime libs:
+#   - libgl1 / libglib2.0-0  → opencv
+#   - libgpiod2              → lets lgpio find a chip on hosts wired through /dev/gpiochip*
+#   - mariadb-client         → handy for `docker compose exec` debugging
+#   - tini                   → clean PID 1 / signal handling
+# Build tools (needed to build the `lgpio` Python wheel from source on slim images):
+#   - gcc / g++ / make / swig / python3-dev
+# We remove build tools at the end of the same layer to keep the image small.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 libgpiod2 mariadb-client tini \
+        gcc g++ make swig python3-dev libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Install Python deps first so this layer caches.
 COPY requirements.txt ./
-RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt \
+    && apt-get purge -y --auto-remove gcc g++ make swig python3-dev libffi-dev \
+    && rm -rf /var/lib/apt/lists/* /root/.cache/pip
 
 # Copy application code.
 COPY plantwatch.py \
