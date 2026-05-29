@@ -332,7 +332,7 @@ body.viewer-mode .viewer-hide-admin{display:none!important}
     <div>
       <div class="about-hero-name">AIgriculture</div>
       <div class="about-hero-tagline">Smart Farm Intelligence Platform</div>
-      <div class="about-hero-domain">app.aigriculture.in</div>
+      <div class="about-hero-domain" id="about-hero-domain">—</div>
     </div>
     <div class="about-hero-ver">
       <div class="ver-lbl">Version</div>
@@ -343,7 +343,7 @@ body.viewer-mode .viewer-hide-admin{display:none!important}
   <!-- Quick stats row -->
   <div class="about-stats-row">
     <div class="about-stat">
-      <div class="as-num">8</div>
+      <div class="as-num" id="about-plants-count">—</div>
       <div class="as-txt">Plants Monitored</div>
     </div>
     <div class="about-stat">
@@ -385,10 +385,10 @@ body.viewer-mode .viewer-hide-admin{display:none!important}
   </div>
   <div class="about-row">
     <span class="ak">Web App</span>
-    <a href="https://app.aigriculture.in" target="_blank" class="about-link">app.aigriculture.in <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+    <a href="#" target="_blank" class="about-link" id="about-webapp-link"><span id="about-webapp-text">—</span> <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
   </div>
   <div class="about-row" style="border-bottom:none">
-    <span class="ak">© 2025 AIgriculture</span>
+    <span class="ak">© 2026 AIgriculture</span>
     <span style="font-size:.72rem;color:var(--muted)">All rights reserved</span>
   </div>
 </div>
@@ -2317,6 +2317,40 @@ body.flora-home-active #page-flora .flora-input-wrap{padding-bottom:28px!importa
       +'</div><div class="fi-note">Only sustained FarmMonitor events are shown here. Storage keeps the evidence images.</div></div>';
   };
   document.addEventListener('DOMContentLoaded',function(){window.loadFarmIntelligence();setInterval(window.loadFarmIntelligence,15000);});
+})();
+</script>
+<script>
+(function(){
+  function applyAboutTab(){
+    try{
+      var host=window.location.host||'';
+      var origin=window.location.origin||('http://'+host);
+      var dom=document.getElementById('about-hero-domain');
+      var txt=document.getElementById('about-webapp-text');
+      var lnk=document.getElementById('about-webapp-link');
+      if(dom)dom.textContent=host||'—';
+      if(txt)txt.textContent=host||'—';
+      if(lnk)lnk.setAttribute('href',origin||'#');
+    }catch(_){}
+  }
+  function applyPlantCount(){
+    fetch('/api/plants',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      var el=document.getElementById('about-plants-count');
+      if(!el||!d)return;
+      var n=null;
+      if(Array.isArray(d.active)&&d.active.length)n=d.active.length;
+      else if(Array.isArray(d.all))n=d.all.length;
+      else if(Array.isArray(d.plants))n=d.plants.length;
+      else if(Array.isArray(d))n=d.length;
+      else if(d.names&&typeof d.names==='object')n=Object.keys(d.names).length;
+      if(n!==null&&n>=0)el.textContent=String(n);
+    }).catch(function(){});
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    applyAboutTab();
+    applyPlantCount();
+    setInterval(applyPlantCount,30000);
+  });
 })();
 </script>
 </body></html>

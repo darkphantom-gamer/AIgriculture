@@ -934,7 +934,7 @@ def _queue_direct_email_html(to_email: str, subject: str, text_body: str, html_b
 
 
 def _subscription_email_html(to_email: str) -> tuple[str, str, str]:
-    dashboard_url = _MAIL_CFG.get('app', {}).get('dashboard_url', 'https://app.aigriculture.in')
+    dashboard_url = _MAIL_CFG.get('app', {}).get('dashboard_url', 'https://aigriculture.in')
     safe_email = html_lib.escape(to_email)
     safe_url = html_lib.escape(dashboard_url)
     subject = "Welcome to AIgriculture Admin"
