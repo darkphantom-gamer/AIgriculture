@@ -38,7 +38,7 @@
 
 | Скрипт | Когда брать | Движок камеры безопасности |
 |--------|-------------|----------------------------|
-| **`python main.py`** | По умолчанию. Работает на любом Raspberry Pi (4 / 5) или ноутбуке. | Ultralytics YOLOv8n на CPU с frame-skip — пойдёт на любом Pi. |
+| **`python main.py`** | По умолчанию. Работает на любом Raspberry Pi (4 / 5) или ноутбуке. | Ultralytics YOLOv8s на CPU с frame-skip — лучше распознаёт человека / медведя / корову / слона, чем nano, и работает в реальном времени на Pi 5. |
 | **`python main-hailo.py`** | Когда установлен Hailo-10H AI HAT. | Hailo HEF-пайплайн — ~10× быстрее инференс. |
 
 Всё остальное (дашборд, логин, FLORA, FarmMonitor, полив, e-mail алерты, хранилище, Meshtastic) **идентично** между скриптами. Разница только в движке инференса камеры безопасности.
@@ -159,7 +159,9 @@ python main.py
 - Передаёт сообщения FLORA через локальный HTTP API
 - Отвечает в том же канале, откуда пришёл запрос
 
-![Реальный LoRa-чат Meshtastic ↔ FLORA](../img/meshtastic-flora-proof.jpg)
+<p align="center">
+  <img src="../img/meshtastic-flora-proof.jpg" alt="Реальный LoRa-чат Meshtastic ↔ FLORA" width="520">
+</p>
 
 Если библиотека Meshtastic не установлена или соединение упало — мост пишет предупреждение и `main.py` продолжает работать, дашборд никогда не блокируется.
 
@@ -249,59 +251,104 @@ FLORA понимает команды на естественном языке:
 
 ## Опции камеры
 
+**Камера безопасности** и **камера FarmMonitor** (сканы болезней / зрелости) принимают одни и те же форматы источника: RPi CSI, USB, RTSP IP или HTTP-MJPEG.
+
+| Камера | CLI-флаг | Переменная окружения |
+|--------|---------|----------------------|
+| Безопасность (вторжение) | `--security-cam <SRC>` | `SECURITY_CAMERA_SOURCE` |
+| FarmMonitor (болезни/зрелость) | `--farm-cam <SRC>` | `FARM_MONITOR_CAMERA` |
+| RPi CSI (только для FarmMonitor) | `--use-rpicam` | — |
+
 ```bash
-# CSI-камера Raspberry Pi (через --input)
-python main.py --input csi:0
+# CSI-камера Raspberry Pi (безопасность)
+python main.py --security-cam rpi
 
-# USB-камера
-python main.py --input /dev/video0
+# CSI-камера Raspberry Pi (FarmMonitor — путь picamera2)
+python main.py --use-rpicam
 
-# Сетевая / RTSP-камера
-python main.py --input rtsp://user:pass@192.168.1.10/live
+# CSI-камера Raspberry Pi (FarmMonitor — путь OpenCV)
+python main.py --farm-cam rpi
+
+# Две USB-камеры
+python main.py --security-cam /dev/video0 --farm-cam /dev/video1
+
+# IP / RTSP-камера (работает в обоих режимах)
+python main.py --security-cam rtsp://user:pass@192.168.1.10/live
+python main.py --farm-cam   rtsp://user:pass@192.168.1.10/live
+
+# HTTP-MJPEG IP-камера (один и тот же URL для обеих камер — можно тестировать без железа)
+python main.py --security-cam http://camera.example/cam.cgi \
+               --farm-cam   http://camera.example/cam.cgi
 ```
 
+Оба флага принимают: `rpi` / `csi` (RPi CSI), `/dev/videoN` (USB), целое число (индекс камеры), `rtsp://…` (IP RTSP), `http://…` (IP MJPEG). Менять код не нужно — достаточно сменить флаг.
+
+Можно запускать вообще без камеры — для тестирования дашборда, FLORA, логики полива и расширения сенсоров:
+
+```bash
+python main.py            # камера безопасности выключена; FarmMonitor залогирует "no camera"
+```
 
 ---
 
-## 🧠 Подключите свои ML-модели
+## 🧠 Подключите свои ML-модели (любая культура, не только клубника)
 
-Детекторы болезней и зрелости — это просто **файлы Ultralytics YOLO `.pt`**.
-Обучите их на своей культуре, положите в `models/` рядом с `main.py`, и приложение их подхватит.
+AIgriculture не привязан к одной культуре. Помидоры, манго, перец, салат, виноград — обучите YOLOv8 на том, что выращиваете, положите веса в `Models/`, укажите переменную окружения. Без правки кода.
 
 ```bash
-# Стандартные модели лежат в рабочей папке FarmMonitor.
-# Замените их своими, и со следующего скана будут использоваться:
-cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
-cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
+# 1. Положите свои обученные веса в Models/
+cp my_tomato_disease.pt    Models/Tomato_disease.pt
+cp my_tomato_ripeness.pt   Models/Tomato_ripeness.pt
+
+# 2. Скажите AIgriculture использовать их (в .env или inline)
+DISEASE_MODEL_PATH=Models/Tomato_disease.pt \
+RIPENESS_MODEL_PATH=Models/Tomato_ripeness.pt \
+python main.py
 ```
 
-Для **камеры безопасности** установите `PLANTWATCH_SECURITY_HEF` в `.env`, чтобы указать на свой `.hef` (Hailo); иначе используется CPU YOLO по умолчанию.
+Для имён классов и цветов отображения скопируйте JSON-метки:
 
-Поставляемые модели для клубники — это лишь стартовая точка, не жёсткое требование.
+```bash
+cp farm_monitor_disease_labels.json    farm_monitor_tomato_disease_labels.json
+cp farm_monitor_ripeness_labels.json   farm_monitor_tomato_ripeness_labels.json
+# Отредактируйте JSON под имена классов вашей модели и укажите путь:
+DISEASE_LABELS_PATH=farm_monitor_tomato_disease_labels.json \
+RIPENESS_LABELS_PATH=farm_monitor_tomato_ripeness_labels.json \
+python main.py
+```
+
+**Камера безопасности** — в CPU-сборке принимает любой Ultralytics-совместимый вес (`SECURITY_MODEL=Models/yolov8m.pt` и т.п.). В Hailo-сборке (`main-hailo.py`) — модель `.hef`, путь задаётся через `PLANTWATCH_SECURITY_HEF`, указывающую на файл в `Models/`.
+
+Поставляемые `Disease_detect.pt` и `Ripeness_detect.pt` настроены на клубнику — это стартовая точка, не жёсткое требование.
 
 ---
 
-## Hailo (опционально)
+## Hailo (опциональный ускоритель)
+
+CPU-путь по умолчанию (`main.py`) работает на любом Pi 4 / 5. Если у вас **Hailo-10H AI HAT**, сначала установите HailoRT и Hailo Apps на хост, затем запустите Hailo-сборку:
 
 ```bash
-# Сначала установите HailoRT SDK, затем запустите с Hailo-флагами:
-python main.py --input /dev/video0 --arch hailo10h --use-frame
+python main-hailo.py --security-cam /dev/video0
 ```
+
+`main-hailo.py` и `main.py` имеют 100% общий код — дашборд, логин, FLORA, FarmMonitor, полив, Meshtastic, хранилище, e-mail-алерты. Единственное отличие — инференс камеры безопасности идёт на Hailo HEF вместо CPU YOLO (обычно в ~10 раз быстрее).
 
 ---
 
 ## CLI-справка
 
 ```
-python main.py [options]
+python main.py [options]            # CPU-сборка (по умолчанию)
+python main-hailo.py [options]      # Hailo HAT-сборка
 
-  --input             вход камеры (csi:N | /dev/videoN | rtsp://... | path)
-  --arch              hailo10h | cpu (по умолчанию: cpu)
-  --use-frame         использовать callback по кадрам Hailo
-  --use-rpicam        использовать путь захвата picamera2 (libcamera)
+  --security-cam SRC  камера для обнаружения вторжений
+                      rpi | csi | /dev/videoN | <индекс> | rtsp://… | http://…
+  --farm-cam     SRC  камера FarmMonitor (сканы болезней / зрелости)
+                      rpi | csi | /dev/videoN | <индекс> | rtsp://… | http://…
+  --use-rpicam        путь захвата picamera2 (libcamera) для FarmMonitor
 ```
 
-Остальные параметры (порт, JPEG-качество, FPS, путь к HEF) — переменные окружения, см. `.env.example`.
+Переменные окружения (см. `.env.example`): `SECURITY_FRAME_SKIP`, `SECURITY_IMGSZ`, `SECURITY_MODEL`, `FARM_MONITOR_CAMERA`, `DISEASE_MODEL_PATH`, `RIPENESS_MODEL_PATH`, `DISEASE_LABELS_PATH`, `RIPENESS_LABELS_PATH`, `PLANTWATCH_SECURITY_HEF` (Hailo).
 
 ---
 
@@ -309,9 +356,26 @@ python main.py [options]
 
 ```
 AIgriculture/
-├── main.py                       # основное приложение: дашборд + датчики + полив
-├── dashboard.html               # дашборд (одностраничное приложение)
-├── login.html                          # экран входа
+├── main.py                             # CPU-сборка: дашборд + датчики + полив + CPU YOLO
+├── main-hailo.py                       # Hailo-сборка: то же + Hailo HEF для камеры безопасности
+│
+├── design/                             # ── фронтенд-страницы (тема + UI) ──
+│   ├── dashboard.html                  # дашборд (одностраничное приложение)
+│   └── login.html                      # экран входа
+│
+├── assets/                             # ── статические изображения / звуки дашборда ──
+│   ├── farmer.png                      # стандартный аватар пользователя
+│   ├── low-cortisol.png                # картинка карточки настроения
+│   ├── test_drive_avatar.png           # демо-аватар
+│   ├── agrisense-favicon.svg           # фавикон
+│   └── threat.mp3                      # звук сирены
+│
+├── Models/                             # ── ML-веса (под любую культуру) ──
+│   ├── Disease_detect.pt               # YOLOv8 для болезней (по умолчанию — клубника)
+│   ├── Ripeness_detect.pt              # YOLOv8 для зрелости (по умолчанию — клубника)
+│   ├── Disease_detect.hef              # Hailo HEF (для Hailo-сборки, опционально)
+│   └── yolov8*.pt                      # авто-скачиваемые веса для безопасности (gitignored)
+│
 ├── farm_monitor_designer_email.py      # шаблон писем с уведомлениями
 ├── farm_monitor_pt_scan.py             # сканер болезней / зрелости
 ├── farm_monitor_disease_labels.json    # YOLO-метки болезней
@@ -319,12 +383,25 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # ИИ-ассистент FLORA
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # мост LoRa
-├── ../assets/                        # изображения, используемые в README
+│
+├── docs/assets/                        # изображения, используемые в README
+├── docs/{ja,hi,ru,zh}/README.md        # переведённые README
+│
 ├── .env.example                        # ← скопировать в .env и отредактировать
 ├── config.example.yaml                 # ← скопировать в config.yaml (для e-mail)
 ├── wiring.example.yaml                 # ← скопировать в wiring.yaml (для своих пинов)
 └── requirements.txt
 ```
+
+Всё в `design/`, `assets/` и `Models/` **взаимозаменяемо**. Можно переопределить пути через env-переменные или просто положить новые файлы с тем же именем.
+
+---
+
+## Автор
+
+**The Great Himkamal** ([@darkphantom-gamer](https://github.com/darkphantom-gamer))
+Построен и поддерживается на реальном железе — клубничная ферма на Raspberry Pi 5.
+Контрибьюции, модели для разных культур и переводы приветствуются.
 
 ---
 

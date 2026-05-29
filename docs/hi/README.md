@@ -38,7 +38,7 @@
 
 | स्क्रिप्ट | कब लें | सिक्योरिटी कैमरा इंजन |
 |-----------|--------|------------------------|
-| **`python main.py`** | डिफ़ॉल्ट। किसी भी Raspberry Pi (4 / 5) या लैपटॉप पर चलता है। | Ultralytics YOLOv8n, CPU पर frame-skip — हर Pi पर चलता है। |
+| **`python main.py`** | डिफ़ॉल्ट। किसी भी Raspberry Pi (4 / 5) या लैपटॉप पर चलता है। | Ultralytics YOLOv8s, CPU पर frame-skip — nano के मुक़ाबले व्यक्ति / भालू / गाय / हाथी पर बेहतर डिटेक्शन, Pi 5 पर रियल-टाइम। |
 | **`python main-hailo.py`** | जब Hailo-10H AI HAT लगा हो। | Hailo HEF पाइपलाइन — ~10× तेज़ इन्फरेंस। |
 
 बाकी सब — डैशबोर्ड, लॉगिन, FLORA, FarmMonitor, सिंचाई, ईमेल अलर्ट, स्टोरेज, Meshtastic — दोनों स्क्रिप्ट्स में **एक जैसा** है। फर्क सिर्फ़ सिक्योरिटी कैमरा के इन्फरेंस इंजन का है।
@@ -159,7 +159,9 @@ python main.py
 - इन-प्रोसेस HTTP API से FLORA को मैसेज भेजता है
 - जिस चैनल पर मैसेज आया उसी पर वापस जवाब देता है
 
-![Meshtastic ↔ FLORA असली LoRa चैट](../img/meshtastic-flora-proof.jpg)
+<p align="center">
+  <img src="../img/meshtastic-flora-proof.jpg" alt="Meshtastic ↔ FLORA असली LoRa चैट" width="520">
+</p>
 
 Meshtastic लाइब्रेरी न हो या कनेक्शन टूट जाए, ब्रिज सिर्फ़ चेतावनी लॉग करेगा — `main.py` चलता रहेगा, डैशबोर्ड कभी ब्लॉक नहीं होगा।
 
@@ -249,59 +251,104 @@ FLORA साधारण भाषा के आदेश समझती है
 
 ## कैमरा विकल्प
 
+**सिक्योरिटी कैमरा** और **FarmMonitor कैमरा** (रोग / पकने स्कैन) — दोनों एक ही तरह के सोर्स लेते हैं: RPi CSI, USB, RTSP IP, या HTTP-MJPEG।
+
+| कैमरा | CLI फ़्लैग | Env वैरिएबल |
+|------|-----------|------------|
+| सिक्योरिटी (इंट्रूज़न) | `--security-cam <SRC>` | `SECURITY_CAMERA_SOURCE` |
+| FarmMonitor (रोग/पकना) | `--farm-cam <SRC>` | `FARM_MONITOR_CAMERA` |
+| RPi CSI (FarmMonitor शॉर्टकट) | `--use-rpicam` | — |
+
 ```bash
-# Raspberry Pi CSI कैमरा (--input से)
-python main.py --input csi:0
+# Raspberry Pi CSI कैमरा (सिक्योरिटी)
+python main.py --security-cam rpi
 
-# USB कैमरा
-python main.py --input /dev/video0
+# Raspberry Pi CSI कैमरा (FarmMonitor — picamera2 पाथ)
+python main.py --use-rpicam
 
-# नेटवर्क / RTSP कैमरा
-python main.py --input rtsp://user:pass@192.168.1.10/live
+# Raspberry Pi CSI कैमरा (FarmMonitor — OpenCV पाथ)
+python main.py --farm-cam rpi
+
+# दो USB कैमरे — एक-एक
+python main.py --security-cam /dev/video0 --farm-cam /dev/video1
+
+# IP / RTSP कैमरा (दोनों तरफ चलता है)
+python main.py --security-cam rtsp://user:pass@192.168.1.10/live
+python main.py --farm-cam   rtsp://user:pass@192.168.1.10/live
+
+# HTTP-MJPEG IP कैमरा (एक ही URL दोनों कैमरों के लिए — हार्डवेयर के बिना टेस्ट करने के लिए)
+python main.py --security-cam http://camera.example/cam.cgi \
+               --farm-cam   http://camera.example/cam.cgi
 ```
 
+दोनों फ़्लैग्स ये सोर्स लेते हैं: `rpi` / `csi` (RPi CSI), `/dev/videoN` (USB), इंडेक्स नंबर, `rtsp://…` (IP RTSP), `http://…` (IP MJPEG)। कोड बदलने की ज़रूरत नहीं — फ़्लैग बदलिए।
+
+बिना किसी कैमरे के भी डैशबोर्ड, FLORA, सिंचाई, सेंसर एक्सपैंशन टेस्ट कर सकते हैं:
+
+```bash
+python main.py            # सिक्योरिटी कैमरा बंद; FarmMonitor "no camera" लॉग करेगा
+```
 
 ---
 
-## 🧠 अपना ML मॉडल लगाएं
+## 🧠 अपना ML मॉडल लगाएं (कोई भी फ़सल, सिर्फ़ स्ट्रॉबेरी नहीं)
 
-रोग और पकने डिटेक्टर बस **Ultralytics YOLO `.pt` फ़ाइलें** हैं।
-अपनी फ़सल पर ट्रेन करें, `main.py` के पास `models/` फ़ोल्डर में डालें — हो गया।
+AIgriculture फ़सल-अग्नोस्टिक है। टमाटर, आम, मिर्च, अंगूर — जो भी उगाते हैं उस पर YOLOv8 ट्रेन कीजिए, वज़न `Models/` में डालिए, env वैरिएबल पॉइंट कीजिए। कोड बदलना नहीं पड़ेगा।
 
 ```bash
-# डिफ़ॉल्ट फ़ाइलें FarmMonitor की working directory में हैं।
-# अपनी .pt से रिप्लेस करें और अगले स्कैन से उपयोग होगा:
-cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
-cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
+# 1. अपने ट्रेन किए हुए वज़न Models/ में डालिए
+cp my_tomato_disease.pt    Models/Tomato_disease.pt
+cp my_tomato_ripeness.pt   Models/Tomato_ripeness.pt
+
+# 2. AIgriculture को बताइए कि इन्हें इस्तेमाल करे (.env में, या इनलाइन)
+DISEASE_MODEL_PATH=Models/Tomato_disease.pt \
+RIPENESS_MODEL_PATH=Models/Tomato_ripeness.pt \
+python main.py
 ```
 
-**सिक्योरिटी कैमरा** के लिए `.env` में `PLANTWATCH_SECURITY_HEF` को अपनी `.hef` फ़ाइल पर सेट करें (Hailo)। न हो तो CPU YOLO डिफ़ॉल्ट चलता है।
+क्लास नाम और रंगों के लिए लेबल JSON डुप्लिकेट कीजिए:
 
-स्ट्रॉबेरी के साथ शिप किए मॉडल बस शुरुआत हैं, कठोर आवश्यकता नहीं।
+```bash
+cp farm_monitor_disease_labels.json    farm_monitor_tomato_disease_labels.json
+cp farm_monitor_ripeness_labels.json   farm_monitor_tomato_ripeness_labels.json
+# JSON में अपने मॉडल के क्लास नाम भरिए, फिर पॉइंट कीजिए:
+DISEASE_LABELS_PATH=farm_monitor_tomato_disease_labels.json \
+RIPENESS_LABELS_PATH=farm_monitor_tomato_ripeness_labels.json \
+python main.py
+```
+
+**सिक्योरिटी कैमरा** के लिए — CPU बिल्ड में कोई भी Ultralytics वज़न (`SECURITY_MODEL=Models/yolov8m.pt`). Hailo बिल्ड (`main-hailo.py`) में `.hef` मॉडल — `PLANTWATCH_SECURITY_HEF` को `Models/` की फ़ाइल पर पॉइंट कीजिए।
+
+बंडल किए गए `Disease_detect.pt` और `Ripeness_detect.pt` स्ट्रॉबेरी के लिए ट्यून किए हैं — सिर्फ़ शुरुआत है, कठोर आवश्यकता नहीं।
 
 ---
 
-## Hailo (वैकल्पिक)
+## Hailo (वैकल्पिक एक्सेलरेटर)
+
+डिफ़ॉल्ट CPU पाथ (`main.py`) हर Pi 4 / 5 पर चलता है। अगर आपके पास **Hailo-10H AI HAT** है, पहले HailoRT और Hailo Apps इंस्टॉल करें, फिर Hailo बिल्ड चलाएं:
 
 ```bash
-# पहले HailoRT SDK इंस्टॉल करें, फिर Hailo फ्लैग्स के साथ चलाएं:
-python main.py --input /dev/video0 --arch hailo10h --use-frame
+python main-hailo.py --security-cam /dev/video0
 ```
+
+`main-hailo.py` और `main.py` का डैशबोर्ड, लॉगिन, FLORA, FarmMonitor, सिंचाई, Meshtastic, स्टोरेज, ईमेल अलर्ट — सब 100% एक ही है। फ़र्क़ बस इतना है कि सिक्योरिटी कैमरा इन्फरेंस CPU YOLO की जगह Hailo HEF पर चलती है — आमतौर पर ~10× तेज़।
 
 ---
 
 ## CLI रिफरेंस
 
 ```
-python main.py [options]
+python main.py [options]            # CPU बिल्ड (डिफ़ॉल्ट)
+python main-hailo.py [options]      # Hailo HAT बिल्ड
 
-  --input             कैमरा इनपुट (csi:N | /dev/videoN | rtsp://... | path)
-  --arch              hailo10h | cpu (डिफ़ॉल्ट: cpu)
-  --use-frame         Hailo के पर-फ्रेम कॉलबैक का उपयोग (Hailo के लिए)
-  --use-rpicam        picamera2 (libcamera) कैप्चर पाथ
+  --security-cam SRC  इंट्रूज़न डिटेक्शन के लिए कैमरा
+                      rpi | csi | /dev/videoN | <index> | rtsp://… | http://…
+  --farm-cam     SRC  FarmMonitor के लिए कैमरा (रोग / पकने स्कैन)
+                      rpi | csi | /dev/videoN | <index> | rtsp://… | http://…
+  --use-rpicam        FarmMonitor के लिए picamera2 (libcamera) कैप्चर पाथ
 ```
 
-बाकी सब (पोर्ट, JPEG क्वालिटी, FPS, सिक्योरिटी HEF पाथ) एनवायरनमेंट वैरिएबल हैं — `.env.example` देखें।
+एनवायरनमेंट वैरिएबल (`.env.example` देखें): `SECURITY_FRAME_SKIP`, `SECURITY_IMGSZ`, `SECURITY_MODEL`, `FARM_MONITOR_CAMERA`, `DISEASE_MODEL_PATH`, `RIPENESS_MODEL_PATH`, `DISEASE_LABELS_PATH`, `RIPENESS_LABELS_PATH`, `PLANTWATCH_SECURITY_HEF` (Hailo)।
 
 ---
 
@@ -309,9 +356,26 @@ python main.py [options]
 
 ```
 AIgriculture/
-├── main.py                       # मुख्य ऐप: डैशबोर्ड + सेंसर + सिंचाई
-├── dashboard.html               # डैशबोर्ड (सिंगल-पेज ऐप)
-├── login.html                          # लॉगिन स्क्रीन
+├── main.py                             # CPU बिल्ड: डैशबोर्ड + सेंसर + सिंचाई + CPU YOLO
+├── main-hailo.py                       # Hailo बिल्ड: वही + Hailo HEF सिक्योरिटी कैम
+│
+├── design/                             # ── फ्रंट-एंड पेज (थीम + UI) ──
+│   ├── dashboard.html                  # डैशबोर्ड (सिंगल-पेज ऐप)
+│   └── login.html                      # लॉगिन स्क्रीन
+│
+├── assets/                             # ── डैशबोर्ड के स्टैटिक इमेज / ऑडियो ──
+│   ├── farmer.png                      # डिफ़ॉल्ट यूज़र अवतार
+│   ├── low-cortisol.png                # मूड कार्ड इमेज
+│   ├── test_drive_avatar.png           # डेमो अवतार
+│   ├── agrisense-favicon.svg           # फ़ेविकॉन
+│   └── threat.mp3                      # सायरन साउंड
+│
+├── Models/                             # ── ML वज़न (किसी भी फ़सल के लिए स्वैप करें) ──
+│   ├── Disease_detect.pt               # YOLOv8 रोग डिटेक्टर (डिफ़ॉल्ट स्ट्रॉबेरी)
+│   ├── Ripeness_detect.pt              # YOLOv8 पकने डिटेक्टर (डिफ़ॉल्ट स्ट्रॉबेरी)
+│   ├── Disease_detect.hef              # Hailo HEF (Hailo बिल्ड के लिए वैकल्पिक)
+│   └── yolov8*.pt                      # ऑटो-डाउनलोड सिक्योरिटी वज़न (gitignored)
+│
 ├── farm_monitor_designer_email.py      # ब्रांडेड अलर्ट ईमेल टेम्पलेट
 ├── farm_monitor_pt_scan.py             # रोग + पकने .pt स्कैनर
 ├── farm_monitor_disease_labels.json    # रोग YOLO क्लास लेबल
@@ -319,12 +383,25 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # FLORA AI असिस्टेंट
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # LoRa ब्रिज
-├── ../assets/                        # README में उपयोग की गई इमेज
+│
+├── docs/assets/                        # README में उपयोग की गई इमेज
+├── docs/{ja,hi,ru,zh}/README.md        # अनुवादित READMEs
+│
 ├── .env.example                        # ← .env में कॉपी करके एडिट
-├── config.example.yaml                 # ← config.yaml में कॉपी (ईमेल के लिए)
+├── config.example.yaml                 # ← config.yaml में कॉपी (ईमेल)
 ├── wiring.example.yaml                 # ← wiring.yaml में कॉपी (कस्टम पिन)
 └── requirements.txt
 ```
+
+`design/`, `assets/`, और `Models/` में सब **स्वैप करने योग्य** है। env वैरिएबल से पाथ ओवरराइड करें, या नई फ़ाइलें उसी नाम से डाल दें।
+
+---
+
+## लेखक
+
+**The Great Himkamal** ([@darkphantom-gamer](https://github.com/darkphantom-gamer))
+असली हार्डवेयर पर बनाया और मेंटेन किया हुआ — एक स्ट्रॉबेरी फार्म जो Raspberry Pi 5 पर चलता है।
+योगदान, फ़सल मॉडल, और अनुवाद का स्वागत है।
 
 ---
 

@@ -404,8 +404,51 @@ def _auto_detect_usb_camera(env_override: str = "") -> str:
         pass
     return ""  # no USB camera found; do not steal the Pi CSI/security camera
 
-FARM_MONITOR_CAMERA = _auto_detect_usb_camera(os.getenv("FARM_MONITOR_CAMERA", ""))
-USE_RPICAM: bool = ("--use-rpicam" in __import__("sys").argv) and _PICAMERA2_AVAILABLE
+def _extract_farm_cam_arg() -> str:
+    """Pull `--farm-cam <source>` out of sys.argv (mirrors --security-cam).
+    Accepts: /dev/video0 | rtsp://… | http://… | integer index | rpi/csi
+    """
+    import sys as _sys
+    cleaned = [_sys.argv[0]]
+    source = ""
+    i = 1
+    while i < len(_sys.argv):
+        arg = _sys.argv[i]
+        if arg == "--farm-cam" and i + 1 < len(_sys.argv):
+            source = _sys.argv[i + 1]; i += 2; continue
+        if arg.startswith("--farm-cam="):
+            source = arg.split("=", 1)[1]; i += 1; continue
+        cleaned.append(arg); i += 1
+    _sys.argv = cleaned
+    return source
+
+
+def _open_farm_video_source(src: str):
+    """Open any camera source string for OpenCV (USB, CSI, RTSP, HTTP, index)."""
+    import cv2 as _cv2
+    s = (src or "").strip()
+    if not s:
+        return None
+    if s.lower().startswith("rtsp"):
+        os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+        return _cv2.VideoCapture(s, _cv2.CAP_FFMPEG)
+    if s.startswith("/dev/"):
+        return _cv2.VideoCapture(s, _cv2.CAP_V4L2)
+    if s.lower() in ("rpi", "csi", "csi:0", "csi:1"):
+        idx = 1 if s.lower() == "csi:1" else 0
+        return _cv2.VideoCapture(f"/dev/video{idx}", _cv2.CAP_V4L2)
+    try:
+        return _cv2.VideoCapture(int(s))
+    except ValueError:
+        return _cv2.VideoCapture(s)
+
+
+_farm_cam_cli = _extract_farm_cam_arg()
+FARM_MONITOR_CAMERA = _farm_cam_cli or _auto_detect_usb_camera(os.getenv("FARM_MONITOR_CAMERA", ""))
+USE_RPICAM: bool = (
+    ("--use-rpicam" in __import__("sys").argv) and _PICAMERA2_AVAILABLE
+    and not _farm_cam_cli
+)
 FARM_MONITOR_WIDTH = int(os.getenv("FARM_MONITOR_WIDTH", "2048"))
 FARM_MONITOR_HEIGHT = int(os.getenv("FARM_MONITOR_HEIGHT", "1536"))
 FARM_MONITOR_FPS = float(os.getenv("FARM_MONITOR_FPS", "7"))
@@ -423,10 +466,21 @@ FARM_MONITOR_RIPENESS_CONF = float(os.getenv("FARM_MONITOR_RIPENESS_CONF", "0.25
 FARM_MONITOR_BLUR_VAR = float(os.getenv("FARM_MONITOR_BLUR_VAR", "80"))
 FARM_MONITOR_WORK = BASE_DIR / "FarmMonitor_Work"
 FARM_MONITOR_SCAN_SCRIPT = BASE_DIR / "farm_monitor_pt_scan.py"
-FARM_MONITOR_DISEASE_PT = PROJECT_ROOT / "Disease_detect.pt"
-FARM_MONITOR_RIPENESS_PT = PROJECT_ROOT / "Ripeness_detect.pt"
-FARM_MONITOR_DISEASE_LABELS = BASE_DIR / "farm_monitor_disease_labels.json"
-FARM_MONITOR_RIPENESS_LABELS = BASE_DIR / "farm_monitor_ripeness_labels.json"
+# ─── Crop models (swappable for any crop, not just strawberry) ─────────────────
+# Drop .pt / .hef files into Models/ and point env vars at them for a new crop.
+_MODELS_DIR = BASE_DIR / "Models"
+FARM_MONITOR_DISEASE_PT = Path(os.getenv(
+    "DISEASE_MODEL_PATH", str(_MODELS_DIR / "Disease_detect.pt")
+))
+FARM_MONITOR_RIPENESS_PT = Path(os.getenv(
+    "RIPENESS_MODEL_PATH", str(_MODELS_DIR / "Ripeness_detect.pt")
+))
+FARM_MONITOR_DISEASE_LABELS = Path(os.getenv(
+    "DISEASE_LABELS_PATH", str(BASE_DIR / "farm_monitor_disease_labels.json")
+))
+FARM_MONITOR_RIPENESS_LABELS = Path(os.getenv(
+    "RIPENESS_LABELS_PATH", str(BASE_DIR / "farm_monitor_ripeness_labels.json")
+))
 
 
 def _ensure_writable_dir(path, friendly_name: str = "directory") -> None:
@@ -494,14 +548,20 @@ def _is_opaque_hashed_filename(filename: str) -> bool:
     return bool(_OPAQUE_HASH_RE.match(Path(filename).name))
 
 
+def _asset_dir() -> Path:
+    """Return the assets folder (preferred) or repo root for legacy layouts."""
+    base = BASE_DIR / "assets"
+    return base if base.is_dir() else BASE_DIR
+
+
 def _asset_candidates():
-    base = Path(__file__).parent
+    base = _asset_dir()
     return [p for p in base.iterdir() if p.is_file() and p.suffix.lower() in _ASSET_MEDIA]
 
 
 def _asset_url(filename: str) -> str:
     safe_name = _strip_legacy_named_hash(filename)
-    path = Path(__file__).parent / safe_name
+    path = _asset_dir() / safe_name
     if not path.exists() or path.suffix.lower() not in _ASSET_MEDIA:
         return f"/img/{Path(filename).name}"
     return f"/img/{_opaque_hashed_filename(path)}"
@@ -1584,7 +1644,8 @@ def farm_monitor_camera_loop():
                         farm_camera_error = "No USB Farm Monitor camera detected"
                         time.sleep(2.0)
                         continue
-                cap = cv2.VideoCapture(FARM_MONITOR_CAMERA)
+                # Same source flexibility as --security-cam (rtsp/http/csi/usb/index)
+                cap = _open_farm_video_source(FARM_MONITOR_CAMERA) or cv2.VideoCapture(FARM_MONITOR_CAMERA)
                 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, FARM_MONITOR_WIDTH)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FARM_MONITOR_HEIGHT)
@@ -2679,7 +2740,9 @@ async def _auth_redirect_handler(request, exc):
 async def login_page(request: Request):
     if _valid_session_user(request):
         return _no_store(RedirectResponse(url="/", status_code=303))
-    lp = Path(__file__).parent / "login.html"
+    lp = BASE_DIR / "design" / "login.html"
+    if not lp.exists():
+        lp = BASE_DIR / "login.html"  # legacy fallback
     if lp.exists():
         return _no_store(HTMLResponse(_apply_content_hashed_assets(lp.read_text(encoding="utf-8"))))
     return _no_store(HTMLResponse("<h1>login.html not found</h1>", status_code=500))
@@ -4519,7 +4582,9 @@ def _inject_spacing_polish(html: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(_user: str = Depends(require_auth)):
-    html_path = Path(__file__).parent / "dashboard.html"
+    html_path = BASE_DIR / "design" / "dashboard.html"
+    if not html_path.exists():
+        html_path = BASE_DIR / "dashboard.html"  # legacy fallback
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
         html = _inject_spacing_polish(

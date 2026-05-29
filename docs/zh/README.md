@@ -38,7 +38,7 @@
 
 | 脚本 | 适用场景 | 安防摄像头推理引擎 |
 |------|----------|-------------------|
-| **`python main.py`** | 默认。任意 Raspberry Pi (4 / 5) 或笔记本都可以跑。 | Ultralytics YOLOv8n 在 CPU 上跑，带 frame-skip — 普通 Pi 即可。 |
+| **`python main.py`** | 默认。任意 Raspberry Pi (4 / 5) 或笔记本都可以跑。 | Ultralytics YOLOv8s 在 CPU 上跑，带 frame-skip — 比 nano 在人 / 熊 / 牛 / 象上的召回更高，Pi 5 也能实时。 |
 | **`python main-hailo.py`** | 已安装 Hailo-10H AI HAT 时。 | Hailo HEF 流水线 — 推理快约 10×。 |
 
 其余部分（仪表盘、登录、FLORA、FarmMonitor、灌溉、邮件提醒、存储、Meshtastic）两脚本 **完全一致**。唯一区别就是安防摄像头的推理引擎。
@@ -159,7 +159,9 @@ python main.py
 - 通过进程内 HTTP API 转发消息给 FLORA
 - 在收到请求的同一频道回复
 
-![Meshtastic ↔ FLORA 真实 LoRa 聊天](../img/meshtastic-flora-proof.jpg)
+<p align="center">
+  <img src="../img/meshtastic-flora-proof.jpg" alt="Meshtastic ↔ FLORA 真实 LoRa 聊天" width="520">
+</p>
 
 Meshtastic 库未安装或连接断开时，桥只打印警告日志，`main.py` 继续运行 — 仪表盘永不阻塞。
 
@@ -249,59 +251,104 @@ FLORA 能理解自然语言命令：
 
 ## 摄像头选项
 
+**安防摄像头** 和 **FarmMonitor 摄像头**（病害 / 成熟度扫描）接受相同的来源格式：RPi CSI、USB、RTSP IP、HTTP-MJPEG。
+
+| 摄像头 | CLI 参数 | 环境变量 |
+|--------|----------|---------|
+| 安防（入侵检测） | `--security-cam <SRC>` | `SECURITY_CAMERA_SOURCE` |
+| FarmMonitor（病害/成熟度） | `--farm-cam <SRC>` | `FARM_MONITOR_CAMERA` |
+| RPi CSI（仅 FarmMonitor 快捷方式） | `--use-rpicam` | — |
+
 ```bash
-# Raspberry Pi CSI 摄像头（通过 --input 指定）
-python main.py --input csi:0
+# Raspberry Pi CSI 摄像头（安防）
+python main.py --security-cam rpi
 
-# USB 摄像头
-python main.py --input /dev/video0
+# Raspberry Pi CSI 摄像头（FarmMonitor — picamera2 路径）
+python main.py --use-rpicam
 
-# 网络 / RTSP 摄像头
-python main.py --input rtsp://user:pass@192.168.1.10/live
+# Raspberry Pi CSI 摄像头（FarmMonitor — OpenCV 路径）
+python main.py --farm-cam rpi
+
+# 两个 USB 摄像头
+python main.py --security-cam /dev/video0 --farm-cam /dev/video1
+
+# IP / RTSP 摄像头（两侧都能用）
+python main.py --security-cam rtsp://user:pass@192.168.1.10/live
+python main.py --farm-cam   rtsp://user:pass@192.168.1.10/live
+
+# HTTP-MJPEG IP 摄像头（一个 URL 同时供两个摄像头使用 — 无硬件也可测试）
+python main.py --security-cam http://camera.example/cam.cgi \
+               --farm-cam   http://camera.example/cam.cgi
 ```
 
+两个参数都接受：`rpi` / `csi`（RPi CSI）、`/dev/videoN`（USB）、整数（摄像头索引）、`rtsp://…`（IP RTSP）、`http://…`（IP MJPEG）。无需改代码 — 改参数即可。
+
+也可以完全不接摄像头，仅测试仪表盘、FLORA、灌溉逻辑、传感器扩展：
+
+```bash
+python main.py            # 安防摄像头关闭；FarmMonitor 会记录 "no camera"
+```
 
 ---
 
-## 🧠 接入你自己的 ML 模型
+## 🧠 接入你自己的 ML 模型（任何作物，不只是草莓）
 
-病害和成熟度检测器就是 **Ultralytics YOLO 的 `.pt` 文件**。
-用自己的作物训练后，放到 `main.py` 旁边的 `models/` 文件夹，应用会自动捡起。
+AIgriculture 不限作物。番茄、芒果、辣椒、生菜、葡萄 — 用 YOLOv8 训练你种的作物，把权重放进 `Models/`，再用环境变量指向它。不需要改代码。
 
 ```bash
-# 默认权重在 FarmMonitor 的工作目录。
-# 用你自己的 .pt 替换，下次扫描即生效：
-cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
-cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
+# 1. 把训练好的权重放进 Models/
+cp my_tomato_disease.pt    Models/Tomato_disease.pt
+cp my_tomato_ripeness.pt   Models/Tomato_ripeness.pt
+
+# 2. 告诉 AIgriculture 使用它们（写进 .env 或直接 inline）
+DISEASE_MODEL_PATH=Models/Tomato_disease.pt \
+RIPENESS_MODEL_PATH=Models/Tomato_ripeness.pt \
+python main.py
 ```
 
-**安防摄像头**：在 `.env` 设置 `PLANTWATCH_SECURITY_HEF` 指向你的 `.hef` 文件（Hailo），否则使用默认 CPU YOLO 路径。
+类别名和显示颜色：复制自带的 JSON 标签：
 
-随仓库提供的草莓模型只是起点，并不是硬性要求。
+```bash
+cp farm_monitor_disease_labels.json    farm_monitor_tomato_disease_labels.json
+cp farm_monitor_ripeness_labels.json   farm_monitor_tomato_ripeness_labels.json
+# 按你模型的类名编辑 JSON，再指向它们：
+DISEASE_LABELS_PATH=farm_monitor_tomato_disease_labels.json \
+RIPENESS_LABELS_PATH=farm_monitor_tomato_ripeness_labels.json \
+python main.py
+```
+
+**安防摄像头** — CPU 构建支持任意 Ultralytics 兼容权重（如 `SECURITY_MODEL=Models/yolov8m.pt`）。Hailo 构建（`main-hailo.py`）使用 `.hef` 模型 — 将 `PLANTWATCH_SECURITY_HEF` 指向 `Models/` 里的文件。
+
+自带的 `Disease_detect.pt` 和 `Ripeness_detect.pt` 针对草莓调过 — 是起点，不是硬性要求。
 
 ---
 
-## Hailo（可选）
+## Hailo（可选加速器）
+
+默认 CPU 路径（`main.py`）在任何 Pi 4 / 5 上都能运行。如果你有 **Hailo-10H AI HAT**，先在主机安装 HailoRT 和 Hailo Apps，然后启动 Hailo 构建：
 
 ```bash
-# 先在主机上安装 HailoRT SDK，然后用 Hailo 输入参数启动：
-python main.py --input /dev/video0 --arch hailo10h --use-frame
+python main-hailo.py --security-cam /dev/video0
 ```
+
+`main-hailo.py` 与 `main.py` 在仪表盘、登录、FLORA、FarmMonitor、灌溉、Meshtastic、存储、邮件告警上代码 100% 共享。区别仅在安防摄像头推理由 CPU YOLO 改为 Hailo HEF — 通常快约 10×。
 
 ---
 
 ## CLI 参考
 
 ```
-python main.py [options]
+python main.py [options]            # CPU 构建（默认）
+python main-hailo.py [options]      # Hailo HAT 构建
 
-  --input             摄像头输入（csi:N | /dev/videoN | rtsp://... | path）
-  --arch              hailo10h | cpu（默认：cpu）
-  --use-frame         使用 Hailo 逐帧回调（Hailo 专用）
-  --use-rpicam        使用 picamera2 (libcamera) 捕获路径
+  --security-cam SRC  入侵检测摄像头
+                      rpi | csi | /dev/videoN | <索引> | rtsp://… | http://…
+  --farm-cam     SRC  FarmMonitor 摄像头（病害 / 成熟度扫描）
+                      rpi | csi | /dev/videoN | <索引> | rtsp://… | http://…
+  --use-rpicam        为 FarmMonitor 使用 picamera2 (libcamera) 捕获路径
 ```
 
-其他选项（端口、JPEG 质量、FPS、安防 HEF 路径）都是环境变量 — 见 `.env.example`。
+环境变量（见 `.env.example`）：`SECURITY_FRAME_SKIP`、`SECURITY_IMGSZ`、`SECURITY_MODEL`、`FARM_MONITOR_CAMERA`、`DISEASE_MODEL_PATH`、`RIPENESS_MODEL_PATH`、`DISEASE_LABELS_PATH`、`RIPENESS_LABELS_PATH`、`PLANTWATCH_SECURITY_HEF`（Hailo）。
 
 ---
 
@@ -309,9 +356,26 @@ python main.py [options]
 
 ```
 AIgriculture/
-├── main.py                       # 主应用：仪表盘 + 传感器 + 灌溉
-├── dashboard.html               # 仪表盘（单页应用）
-├── login.html                          # 登录页
+├── main.py                             # CPU 构建：仪表盘 + 传感器 + 灌溉 + CPU YOLO
+├── main-hailo.py                       # Hailo 构建：同上 + Hailo HEF 安防摄像头
+│
+├── design/                             # ── 前端页面（主题 + UI） ──
+│   ├── dashboard.html                  # 仪表盘（单页应用）
+│   └── login.html                      # 登录页
+│
+├── assets/                             # ── 仪表盘的静态图片 / 音频 ──
+│   ├── farmer.png                      # 默认用户头像
+│   ├── low-cortisol.png                # 状态卡图片
+│   ├── test_drive_avatar.png           # 演示头像
+│   ├── agrisense-favicon.svg           # 网站图标
+│   └── threat.mp3                      # 警报声
+│
+├── Models/                             # ── ML 权重（可换任何作物） ──
+│   ├── Disease_detect.pt               # YOLOv8 病害检测器（默认草莓）
+│   ├── Ripeness_detect.pt              # YOLOv8 成熟度检测器（默认草莓）
+│   ├── Disease_detect.hef              # Hailo HEF（Hailo 构建可选）
+│   └── yolov8*.pt                      # 自动下载的安防权重（已 gitignore）
+│
 ├── farm_monitor_designer_email.py      # 告警邮件模板
 ├── farm_monitor_pt_scan.py             # 病害 + 成熟度 .pt 扫描器
 ├── farm_monitor_disease_labels.json    # 病害 YOLO 类别标签
@@ -319,12 +383,25 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # FLORA AI 助手
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # LoRa 桥
-├── ../assets/                        # README 中使用的图片
+│
+├── docs/assets/                        # README 中使用的图片
+├── docs/{ja,hi,ru,zh}/README.md        # 翻译版 README
+│
 ├── .env.example                        # ← 复制为 .env 并编辑
 ├── config.example.yaml                 # ← 复制为 config.yaml（用于邮件）
 ├── wiring.example.yaml                 # ← 复制为 wiring.yaml（用于自定义引脚）
 └── requirements.txt
 ```
+
+`design/`、`assets/` 与 `Models/` 下的所有内容都**可替换**。可以用环境变量覆盖路径，或直接以相同文件名放新文件。
+
+---
+
+## 作者
+
+**The Great Himkamal**（[@darkphantom-gamer](https://github.com/darkphantom-gamer)）
+在真实硬件上构建并维护 — 一座运行在 Raspberry Pi 5 上的草莓农场。
+欢迎贡献代码、作物模型和新的翻译。
 
 ---
 

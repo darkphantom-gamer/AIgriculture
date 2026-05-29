@@ -380,8 +380,38 @@ def _auto_detect_usb_camera(env_override: str = "") -> str:
         pass
     return ""  # no USB camera found; do not steal the Pi CSI/security camera
 
-FARM_MONITOR_CAMERA = _auto_detect_usb_camera(os.getenv("FARM_MONITOR_CAMERA", ""))
-USE_RPICAM: bool = ("--use-rpicam" in __import__("sys").argv) and _PICAMERA2_AVAILABLE
+def _extract_farm_cam_arg() -> str:
+    """Pull `--farm-cam <source>` out of sys.argv (mirrors --security-cam).
+    Accepts the same source strings as --security-cam:
+      /dev/video0 (USB)  |  rtsp://… (IP)  |  http://… (MJPEG)  |  0 (index)  |  rpi/csi (CSI via OpenCV)
+    """
+    import sys as _sys
+    cleaned = [_sys.argv[0]]
+    source = ""
+    i = 1
+    while i < len(_sys.argv):
+        arg = _sys.argv[i]
+        if arg == "--farm-cam" and i + 1 < len(_sys.argv):
+            source = _sys.argv[i + 1]
+            i += 2
+            continue
+        if arg.startswith("--farm-cam="):
+            source = arg.split("=", 1)[1]
+            i += 1
+            continue
+        cleaned.append(arg)
+        i += 1
+    _sys.argv = cleaned
+    return source
+
+_farm_cam_cli = _extract_farm_cam_arg()
+# Precedence: --farm-cam CLI flag  >  FARM_MONITOR_CAMERA env  >  USB auto-detect
+FARM_MONITOR_CAMERA = _farm_cam_cli or _auto_detect_usb_camera(os.getenv("FARM_MONITOR_CAMERA", ""))
+# --use-rpicam → CSI camera via picamera2 (FarmMonitor); CLI source overrides this.
+USE_RPICAM: bool = (
+    ("--use-rpicam" in __import__("sys").argv) and _PICAMERA2_AVAILABLE
+    and not _farm_cam_cli
+)
 FARM_MONITOR_WIDTH = int(os.getenv("FARM_MONITOR_WIDTH", "2048"))
 FARM_MONITOR_HEIGHT = int(os.getenv("FARM_MONITOR_HEIGHT", "1536"))
 FARM_MONITOR_FPS = float(os.getenv("FARM_MONITOR_FPS", "7"))
@@ -425,10 +455,23 @@ def _ensure_writable_dir(path, friendly_name: str = "directory") -> None:
                 f"{friendly_name} '{path}' is not writable by the current user. "
                 f"Run:  sudo chown -R $USER:$USER '{path}'  and retry."
             )
-FARM_MONITOR_DISEASE_PT = PROJECT_ROOT / "Disease_detect.pt"
-FARM_MONITOR_RIPENESS_PT = PROJECT_ROOT / "Ripeness_detect.pt"
-FARM_MONITOR_DISEASE_LABELS = BASE_DIR / "farm_monitor_disease_labels.json"
-FARM_MONITOR_RIPENESS_LABELS = BASE_DIR / "farm_monitor_ripeness_labels.json"
+# ─── Crop models (swappable for any crop, not just strawberry) ─────────────────
+# Drop your own YOLOv8 .pt files into Models/ and point these envs at them to
+# scan any crop. Labels JSON maps class names to human-readable text + colors;
+# duplicate farm_monitor_*_labels.json as a template for new crops.
+_MODELS_DIR = BASE_DIR / "Models"
+FARM_MONITOR_DISEASE_PT = Path(os.getenv(
+    "DISEASE_MODEL_PATH", str(_MODELS_DIR / "Disease_detect.pt")
+))
+FARM_MONITOR_RIPENESS_PT = Path(os.getenv(
+    "RIPENESS_MODEL_PATH", str(_MODELS_DIR / "Ripeness_detect.pt")
+))
+FARM_MONITOR_DISEASE_LABELS = Path(os.getenv(
+    "DISEASE_LABELS_PATH", str(BASE_DIR / "farm_monitor_disease_labels.json")
+))
+FARM_MONITOR_RIPENESS_LABELS = Path(os.getenv(
+    "RIPENESS_LABELS_PATH", str(BASE_DIR / "farm_monitor_ripeness_labels.json")
+))
 
 
 # ── CDN-style content hashing ──────────────────────────────────────────────────
@@ -470,14 +513,20 @@ def _is_opaque_hashed_filename(filename: str) -> bool:
     return bool(_OPAQUE_HASH_RE.match(Path(filename).name))
 
 
+def _asset_dir() -> Path:
+    """Return the assets folder (preferred) or repo root for legacy layouts."""
+    base = BASE_DIR / "assets"
+    return base if base.is_dir() else BASE_DIR
+
+
 def _asset_candidates():
-    base = Path(__file__).parent
+    base = _asset_dir()
     return [p for p in base.iterdir() if p.is_file() and p.suffix.lower() in _ASSET_MEDIA]
 
 
 def _asset_url(filename: str) -> str:
     safe_name = _strip_legacy_named_hash(filename)
-    path = Path(__file__).parent / safe_name
+    path = _asset_dir() / safe_name
     if not path.exists() or path.suffix.lower() not in _ASSET_MEDIA:
         return f"/img/{Path(filename).name}"
     return f"/img/{_opaque_hashed_filename(path)}"
@@ -1299,7 +1348,18 @@ def cpu_security_camera_loop(source: str):
         hailo_logger.error(f"ultralytics not installed ({e}) — security camera disabled")
         return
 
-    model_path = os.getenv("SECURITY_MODEL", "yolov8n.pt")
+    # Default to YOLOv8s ("small") rather than nano — meaningfully better recall on
+    # the farm-threat classes (person / bear / elephant / cow / dog / horse / ...)
+    # at ~3× the per-frame cost. On a Pi 5 with the default SECURITY_FRAME_SKIP=5
+    # this is still well under one inference per second of wall clock. Operators
+    # who want max FPS can set SECURITY_MODEL=yolov8n.pt in .env to revert.
+    # Prefer Models/yolov8s.pt if present; otherwise pass the bare name so
+    # Ultralytics auto-downloads the weights into the working directory.
+    _default_security = "yolov8s.pt"
+    _models_dir_candidate = BASE_DIR / "Models" / _default_security
+    if _models_dir_candidate.exists():
+        _default_security = str(_models_dir_candidate)
+    model_path = os.getenv("SECURITY_MODEL", _default_security)
     try:
         model = YOLO(model_path)
     except Exception as e:
@@ -1324,7 +1384,10 @@ def cpu_security_camera_loop(source: str):
         return
 
     FRAME_SKIP   = max(1, int(os.getenv("SECURITY_FRAME_SKIP", "5")))
-    INFER_IMGSZ  = max(160, int(os.getenv("SECURITY_IMGSZ", "480")))
+    # 640 is the size YOLOv8 was trained at — better recall on small / distant
+    # subjects (a person at 30 px is below the noise floor at 480). Drop to 480
+    # if you need more CPU headroom.
+    INFER_IMGSZ  = max(160, int(os.getenv("SECURITY_IMGSZ", "640")))
     min_jpeg_dt  = max(0.03, 1.0 / max(1.0, STREAM_TARGET_FPS))
     last_jpeg_ts = 0.0
     last_save: dict = {}
@@ -1626,15 +1689,23 @@ def farm_monitor_camera_loop():
                         farm_camera_error = "No USB Farm Monitor camera detected"
                         time.sleep(2.0)
                         continue
-                cap = cv2.VideoCapture(FARM_MONITOR_CAMERA)
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, FARM_MONITOR_WIDTH)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FARM_MONITOR_HEIGHT)
-                cap.set(cv2.CAP_PROP_FPS, FARM_MONITOR_FPS)
-                cap.set(cv2.CAP_PROP_AUTO_WB, 1)
-                cap.set(cv2.CAP_PROP_BRIGHTNESS, FARM_MONITOR_BRIGHTNESS)
-                cap.set(cv2.CAP_PROP_CONTRAST, FARM_MONITOR_CONTRAST)
-                cap.set(cv2.CAP_PROP_SATURATION, FARM_MONITOR_SATURATION)
+                # Route through _open_video_source so any string accepted by
+                # --security-cam also works for FarmMonitor: /dev/video0, rpi,
+                # csi, an integer index, rtsp://…, http://….
+                cap = _open_video_source(FARM_MONITOR_CAMERA) or cv2.VideoCapture(FARM_MONITOR_CAMERA)
+                # MJPG + V4L2 tuning is only meaningful for USB capture devices;
+                # RTSP / HTTP / CSI streams ignore most of these properties safely.
+                try:
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FARM_MONITOR_WIDTH)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FARM_MONITOR_HEIGHT)
+                    cap.set(cv2.CAP_PROP_FPS, FARM_MONITOR_FPS)
+                    cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+                    cap.set(cv2.CAP_PROP_BRIGHTNESS, FARM_MONITOR_BRIGHTNESS)
+                    cap.set(cv2.CAP_PROP_CONTRAST, FARM_MONITOR_CONTRAST)
+                    cap.set(cv2.CAP_PROP_SATURATION, FARM_MONITOR_SATURATION)
+                except Exception:
+                    pass
                 if not cap.isOpened():
                     farm_camera_ok = False
                     farm_camera_error = f"Cannot open {FARM_MONITOR_CAMERA}"
@@ -2721,7 +2792,9 @@ async def _auth_redirect_handler(request, exc):
 async def login_page(request: Request):
     if _valid_session_user(request):
         return _no_store(RedirectResponse(url="/", status_code=303))
-    lp = Path(__file__).parent / "login.html"
+    lp = BASE_DIR / "design" / "login.html"
+    if not lp.exists():
+        lp = BASE_DIR / "login.html"  # legacy fallback
     if lp.exists():
         return _no_store(HTMLResponse(_apply_content_hashed_assets(lp.read_text(encoding="utf-8"))))
     return _no_store(HTMLResponse("<h1>login.html not found</h1>", status_code=500))
@@ -4563,7 +4636,9 @@ def _inject_spacing_polish(html: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(_user: str = Depends(require_auth)):
-    html_path = Path(__file__).parent / "dashboard.html"
+    html_path = BASE_DIR / "design" / "dashboard.html"
+    if not html_path.exists():
+        html_path = BASE_DIR / "dashboard.html"  # legacy fallback
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
         html = _inject_spacing_polish(

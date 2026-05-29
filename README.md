@@ -38,7 +38,7 @@ The repo ships **two entry points** — pick the one that matches your hardware:
 
 | Script | When to use | Security camera engine |
 |--------|-------------|------------------------|
-| **`python main.py`** | Default. Runs on any Raspberry Pi (4 / 5) or laptop. | Ultralytics YOLOv8n on CPU with frame-skip — works on any Pi. |
+| **`python main.py`** | Default. Runs on any Raspberry Pi (4 / 5) or laptop. | Ultralytics YOLOv8s on CPU with frame-skip — better recall on person / bear / cow / elephant than nano, still real-time on a Pi 5. |
 | **`python main-hailo.py`** | You have the Hailo-10H AI HAT installed. | Hailo HEF pipeline — ~10× faster inference. |
 
 Everything else — dashboard, login, FLORA, FarmMonitor, irrigation, email alerts, storage, Meshtastic — is **identical** between the two. The only difference is which inference engine drives the security camera.
@@ -208,7 +208,9 @@ Both `main.py` and `main-hailo.py` start the Meshtastic ↔ FLORA bridge **in th
 - Forwards messages to FLORA via the in-process HTTP API
 - Replies to the sender on the same channel the request arrived on
 
-![FLORA replying over a real LoRa mesh](docs/img/meshtastic-flora-proof.jpg)
+<p align="center">
+  <img src="docs/img/meshtastic-flora-proof.jpg" alt="FLORA replying over a real LoRa mesh" width="520">
+</p>
 
 If the Meshtastic library isn't installed or the connection drops, the bridge logs a warning and main.py keeps running — never blocks the dashboard.
 
@@ -298,33 +300,79 @@ All captured frames, farm scans, and security snapshots are browsable from the d
 
 ## Camera options
 
+Both the **security camera** and the **FarmMonitor camera** (disease / ripeness scans) accept the same source forms — RPi CSI, USB, RTSP IP cam, or HTTP-MJPEG. You pick the source per-camera with a CLI flag or an env var.
+
+| Camera | CLI flag | Env var |
+|--------|----------|---------|
+| Security cam (intrusion) | `--security-cam <SRC>` | `SECURITY_CAMERA_SOURCE` |
+| FarmMonitor (disease/ripeness) | `--farm-cam <SRC>` | `FARM_MONITOR_CAMERA` |
+| RPi CSI shortcut (FarmMonitor only) | `--use-rpicam` | — |
+
 ```bash
-# Raspberry Pi CSI camera
-python main.py --input csi:0
+# Raspberry Pi CSI camera — security only
+python main.py --security-cam rpi
 
-# USB camera
-python main.py --input /dev/video0
+# Raspberry Pi CSI camera — FarmMonitor (picamera2 path)
+python main.py --use-rpicam
 
-# Network / RTSP camera
-python main.py --input rtsp://user:pass@192.168.1.10/live
+# Raspberry Pi CSI camera — FarmMonitor (OpenCV path, no picamera2 needed)
+python main.py --farm-cam rpi
+
+# USB camera, one each
+python main.py --security-cam /dev/video0 --farm-cam /dev/video1
+
+# IP / RTSP camera on either side
+python main.py --security-cam rtsp://user:pass@192.168.1.10/live
+python main.py --farm-cam   rtsp://user:pass@192.168.1.10/live
+
+# HTTP-MJPEG IP camera (the same URL feeds both cameras for hardware-free testing)
+python main.py --security-cam http://camera.example/cam.cgi \
+               --farm-cam   http://camera.example/cam.cgi
+
+# Mix and match: USB security cam + IP FarmMonitor cam (e.g. greenhouse cam)
+python main.py --security-cam /dev/video0 \
+               --farm-cam   rtsp://greenhouse:5554/live
+```
+
+Source strings accepted by **both** flags: `rpi` / `csi` (RPi CSI via OpenCV), `/dev/videoN` (USB), an integer (camera index), `rtsp://…` (IP RTSP), `http://…` (IP MJPEG). No code edits needed for new cameras — just change the flag or env.
+
+Run **with no camera at all** to test the dashboard, FLORA, irrigation logic, and sensor expansion:
+
+```bash
+python main.py            # security cam off; FarmMonitor will log "no camera"
 ```
 
 ---
 
-## 🧠 Plug in your own ML models
+## 🧠 Plug in your own ML models (any crop, not just strawberry)
 
-The disease and ripeness detectors are just **Ultralytics YOLO `.pt` files**.
-Train them on your own crop, drop them into a `models/` folder beside `main.py`, and the app picks them up — done.
+AIgriculture is crop-agnostic. Train YOLOv8 on whatever you grow — tomatoes, mangoes, peppers, lettuce, grapes — drop the weights into `Models/`, point an env var at them, and you're done. No code changes.
 
 ```bash
-# Replace these with your own .pt weights and FarmMonitor uses them on the next scan:
-cp my_strawberry_disease.pt   FarmMonitor_Work/Disease_detect.pt
-cp my_tomato_ripeness.pt      FarmMonitor_Work/Ripeness_detect.pt
+# 1. Drop your trained weights into Models/
+cp my_tomato_disease.pt    Models/Tomato_disease.pt
+cp my_tomato_ripeness.pt   Models/Tomato_ripeness.pt
+
+# 2. Tell AIgriculture to use them (in .env, or inline)
+DISEASE_MODEL_PATH=Models/Tomato_disease.pt \
+RIPENESS_MODEL_PATH=Models/Tomato_ripeness.pt \
+python main.py
 ```
 
-For the **security camera**, set `PLANTWATCH_SECURITY_HEF` in `.env` to point at your `.hef` file (Hailo) — the default CPU YOLO path is used otherwise.
+For class names + display colors, duplicate the bundled label JSONs:
 
-The bundled strawberry models are a starting point, not a hard requirement.
+```bash
+cp farm_monitor_disease_labels.json    farm_monitor_tomato_disease_labels.json
+cp farm_monitor_ripeness_labels.json   farm_monitor_tomato_ripeness_labels.json
+# Edit the JSONs to match your model's class names, then point at them:
+DISEASE_LABELS_PATH=farm_monitor_tomato_disease_labels.json \
+RIPENESS_LABELS_PATH=farm_monitor_tomato_ripeness_labels.json \
+python main.py
+```
+
+For the **security camera**, the CPU build uses any Ultralytics-compatible weight (`SECURITY_MODEL=Models/yolov8m.pt`, etc.). The Hailo build (`main-hailo.py`) takes a `.hef` model — point `PLANTWATCH_SECURITY_HEF` at your file in `Models/`.
+
+The bundled `Disease_detect.pt` and `Ripeness_detect.pt` are tuned for strawberries — they're a starting point, not a hard requirement.
 
 ---
 
@@ -349,13 +397,23 @@ python main.py [options]            # CPU build (default)
 python main-hailo.py [options]      # Hailo HAT build
 
   --security-cam SRC  camera for intrusion detection
-                      csi:N | /dev/videoN | rtsp://user:pass@host/path
-  --use-rpicam        use the picamera2 (libcamera) capture path on Pi
+                      rpi | csi | /dev/videoN | <index> | rtsp://… | http://…
+  --farm-cam     SRC  camera for FarmMonitor (disease / ripeness scans)
+                      rpi | csi | /dev/videoN | <index> | rtsp://… | http://…
+  --use-rpicam        use the picamera2 (libcamera) capture path for FarmMonitor
 ```
 
-Environment knobs (see `.env.example`): `SECURITY_FRAME_SKIP` (default 5),
-`SECURITY_IMGSZ` (default 480), `SECURITY_MODEL` (default `yolov8n.pt`),
-plus port, JPEG quality, FPS, and the Hailo HEF path.
+Environment knobs (see `.env.example`):
+- `SECURITY_FRAME_SKIP` (default 5), `SECURITY_IMGSZ` (default 640),
+  `SECURITY_MODEL` (default `yolov8s.pt` — swap for `yolov8n.pt` for max FPS,
+  or `yolov8m.pt` for even higher recall).
+- `FARM_MONITOR_CAMERA` — `/dev/videoN`, `rpi`, `rtsp://…`, `http://…`, or
+  blank to auto-detect a USB cam.
+- `DISEASE_MODEL_PATH` / `RIPENESS_MODEL_PATH` — point at any YOLOv8 `.pt`
+  inside `Models/` to switch crops without code edits.
+- `DISEASE_LABELS_PATH` / `RIPENESS_LABELS_PATH` — point at custom label JSONs
+  (see the bundled `farm_monitor_*_labels.json` for the format).
+- `PLANTWATCH_SECURITY_HEF` — Hailo HEF model for the Hailo build.
 
 ---
 
@@ -365,8 +423,24 @@ plus port, JPEG quality, FPS, and the Hailo HEF path.
 AIgriculture/
 ├── main.py                             # CPU build: dashboard + sensors + irrigation + CPU YOLO
 ├── main-hailo.py                       # Hailo build: same as main.py + Hailo HEF security cam
-├── dashboard.html                      # the dashboard (single-page app)
-├── login.html                          # login screen
+│
+├── design/                             # ── front-end pages (theme + UI) ──
+│   ├── dashboard.html                  # the dashboard (single-page app)
+│   └── login.html                      # login screen
+│
+├── assets/                             # ── static images / audio served by the dashboard ──
+│   ├── farmer.png                      # default user avatar
+│   ├── low-cortisol.png                # mood / wellness card image
+│   ├── test_drive_avatar.png           # demo avatar
+│   ├── agrisense-favicon.svg           # favicon
+│   └── threat.mp3                      # siren sound
+│
+├── Models/                             # ── ML weights (swap for any crop) ──
+│   ├── Disease_detect.pt               # YOLOv8 disease detector (strawberry default)
+│   ├── Ripeness_detect.pt              # YOLOv8 ripeness detector (strawberry default)
+│   ├── Disease_detect.hef              # Hailo HEF for disease (optional, Hailo build)
+│   └── yolov8*.pt                      # auto-downloaded security weights (gitignored)
+│
 ├── farm_monitor_designer_email.py      # branded alert email composer
 ├── farm_monitor_pt_scan.py             # disease + ripeness .pt scanner
 ├── farm_monitor_disease_labels.json    # YOLO class labels for disease
@@ -374,13 +448,27 @@ AIgriculture/
 ├── flora_agent.py / flora_config.py    # FLORA AI assistant
 ├── flora_report.py / flora_scheduler.py / flora_tools.py
 ├── meshtastic_flora_bridge.py          # LoRa bridge
+│
 ├── docs/assets/                        # images used in this README
 ├── docs/{ja,hi,ru,zh}/README.md        # translated READMEs
+│
 ├── .env.example                        # ← copy to .env and edit
 ├── config.example.yaml                 # ← copy to config.yaml and edit (for email)
 ├── wiring.example.yaml                 # ← copy to wiring.yaml and edit (for custom pins)
 └── requirements.txt
 ```
+
+Everything in `design/`, `assets/`, and `Models/` is **swappable**. Override
+paths via env (`DISEASE_MODEL_PATH`, `RIPENESS_MODEL_PATH`, `DISEASE_LABELS_PATH`,
+`RIPENESS_LABELS_PATH`) or just drop new files in place with the same names.
+
+---
+
+## Author
+
+**The Great Himkamal** ([@darkphantom-gamer](https://github.com/darkphantom-gamer))
+Built and maintained on real hardware — a strawberry farm running on a Raspberry Pi 5.
+Contributions, crop models, and translations welcome.
 
 ---
 

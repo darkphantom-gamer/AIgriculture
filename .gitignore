@@ -64,4 +64,6 @@ yolov8s.pt
 yolov8m.pt
 yolov8l.pt
 yolov8x.pt
+Models/yolov8*.pt
 *.hef
+!Models/Disease_detect.hef
