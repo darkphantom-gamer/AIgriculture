@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌱 AIgriculture
+#  AIgriculture
 
 **面向 Raspberry Pi 的开源智能农场系统。**
 监测土壤湿度、自动灌溉、检测病害，并与你的农场进行 AI 对话 — 全部通过一个网页仪表盘。
