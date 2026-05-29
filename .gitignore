@@ -67,3 +67,4 @@ yolov8x.pt
 Models/yolov8*.pt
 *.hef
 !Models/Disease_detect.hef
+!Models/Ripeness_detect.hef
