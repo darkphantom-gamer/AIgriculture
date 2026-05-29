@@ -27,7 +27,7 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 
 | Subsystem | What you get |
 |-----------|-------------|
-| **Irrigation** | 8-plant burst irrigation with auto-mode (trigger at 45 % moisture, stop at 65 %, hardlock at 70 %) |
+| **Irrigation** | plant burst irrigation with auto-mode (trigger at 45 % moisture, stop at 65 %, hardlock at 70 %) |
 | **FarmMonitor** | Periodic YOLO scan for disease (5 classes) and ripeness (5 stages); email alert on detection |
 | **Security camera** | Real-time person / animal detection with dual-buzzer siren; MJPEG stream in dashboard |
 | **FLORA AI** | Multi-provider chat assistant (Groq / Cerebras / Mistral / Gemini) with farm tool use; offline fallback |
