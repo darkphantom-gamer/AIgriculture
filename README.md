@@ -2,8 +2,8 @@
 
 # AIgriculture
 
-**An open-source smart farm system for Raspberry Pi.**
-Monitor soil moisture, automate irrigation, detect disease, and chat with your farm using AI — all from a single web dashboard.
+**An open-source smart farm monitoring system using Raspberry Pi.**
+Monitor soil moisture, automate irrigation, detect disease,detect harvest ready,notify all alerts, and chat with your farm using FLORA AI — all from a single web dashboard.
 
 [![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](README.md)
 [![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](docs/ja/README.md)
@@ -239,7 +239,7 @@ Five tabs: **Overview** (live moisture + pump control), **Cameras** (MJPEG strea
 
 ---
 
-## FLORA AI assistant
+## FLORA AI assistant (Farm Live Operation and Reasoning Assistant)
 
 ![FLORA preview](docs/assets/FLORA_preview.jpeg)
 
