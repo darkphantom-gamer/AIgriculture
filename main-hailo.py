@@ -31,6 +31,11 @@ def _load_env_file() -> None:
     MariaDB error even when DB_PASS is filled in). We don't pull in
     python-dotenv: tiny KEY=VALUE parser is enough and keeps requirements
     lean.
+
+    Blank-valued lines like ``PLANTWATCH_STORAGE=`` are SKIPPED instead of
+    setting the key to an empty string — otherwise an empty value would shadow
+    code-side defaults (e.g. ``STORAGE_PATH = Path(os.getenv("PLANTWATCH_STORAGE",
+    str(BASE_DIR / "Storage_Data")))`` would resolve to ``Path("")`` → ``.``).
     """
     env_path = Path(__file__).resolve().parent / ".env"
     if not env_path.exists():
@@ -48,6 +53,8 @@ def _load_env_file() -> None:
             # Strip a single matching pair of surrounding quotes.
             if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
                 value = value[1:-1]
+            if value == "":
+                continue  # don't shadow defaults with empty strings
             os.environ[key] = value
     except OSError:
         pass
@@ -331,6 +338,18 @@ except ImportError:
     print("[WARN] PyJWT not installed — run: pip install PyJWT --break-system-packages")
 
 try:
+    # passlib 1.7.x probes ``bcrypt.__about__.__version__`` which was removed
+    # in bcrypt 4.x — without this shim it logs a noisy AttributeError on every
+    # boot even though hashing/verification still work. Stop the noise by giving
+    # passlib the version string it expects.
+    try:
+        import bcrypt as _bcrypt_mod  # noqa: F401
+        if not hasattr(_bcrypt_mod, "__about__"):
+            class _BcryptAbout:  # tiny shim with just the attribute passlib reads
+                __version__ = getattr(_bcrypt_mod, "__version__", "0.0.0")
+            _bcrypt_mod.__about__ = _BcryptAbout()  # type: ignore[attr-defined]
+    except ImportError:
+        pass
     from passlib.context import CryptContext
     _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
     BCRYPT_AVAILABLE = True
@@ -2359,8 +2378,9 @@ def _verify_credentials(username: str, password: str):
 
 def _create_token(username: str) -> tuple[str, str]:
     """Returns (jwt_string, jti)."""
+    from datetime import timezone
     jti = _secrets.token_hex(32)
-    exp = datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HRS)
+    exp = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HRS)
     payload = {"sub": username, "jti": jti, "exp": exp}
     token = _jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
     # Record in DB
