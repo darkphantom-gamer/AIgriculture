@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌱 AIgriculture
+#  AIgriculture
 
 **Raspberry Pi 用のオープンソース・スマートファームシステム。**
 土壌湿度の監視、灌漑の自動化、病害検出、AI とのチャット — すべて一つの Web ダッシュボードから。
