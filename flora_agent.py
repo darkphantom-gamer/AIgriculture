@@ -386,7 +386,7 @@ _CHATTER = [
       "See you soon 💚 I'll be here, tending quietly."]),
     (re.compile(r"(what can you do|what do you do|^\s*help\s*$|need (some )?help|your (abilities|features|capabilities|commands|skills)|how (can|do) you help|show.{0,10}commands)", re.I),
      "Here's how I can help, anytime 🌿\n\n"
-     "- 🌱 **Farm status** & moisture for all 8 plants\n"
+     "- 🌱 **Farm status** & moisture for every active plant\n"
      "- 💧 **Water or stop** a plant's pump\n"
      "- 📷 **Camera** checks — Security & FarmMonitor\n"
      "- 📊 **Analytics** & stored detection events\n"

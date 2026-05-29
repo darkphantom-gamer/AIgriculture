@@ -29,8 +29,16 @@ def is_ready() -> bool:
 
 # ── Internal helpers ────────────────────────────────────────────────────────────
 
-def _plants() -> str:
-    return _B.get("PLANTS", "abcdefgh")
+def _plants():
+    """Iterate only the plants the operator actually has wired/registered.
+
+    ACTIVE_PLANTS is the authoritative list at runtime — it shrinks/grows
+    when the operator removes or adds sensors via the dashboard. Falls back
+    to PLANTS (max-capacity list) only if the bridge predates the
+    ACTIVE_PLANTS field, which avoids reporting on plant slots the
+    operator does not actually own.
+    """
+    return _B.get("ACTIVE_PLANTS") or _B.get("PLANTS", "abcdefgh")
 
 
 def _norm_plant(plant: str):
@@ -63,9 +71,9 @@ def _ok(payload) -> str:
 # ════════════════════════════════════════════════════════════════════════════════
 
 def get_farm_status() -> str:
-    """Whole-farm overview: moisture & pumps for all 8 plants, security/intruder
-    status, the FarmMonitor camera's plant-health & harvest read-out, plus a
-    short analysed summary of everything."""
+    """Whole-farm overview: moisture & pumps for every active plant, security/
+    intruder status, the FarmMonitor camera's plant-health & harvest read-out,
+    plus a short analysed summary of everything."""
     plants = {}
     low, offline, wet, pumping = [], [], [], []
     for p in _plants():
@@ -931,7 +939,7 @@ def _fn(name, description, properties=None, required=None):
 _PLANT_PROP = {"type": "string", "description": "Plant id A-H"}
 
 TOOL_SPECS = [
-    _fn("get_farm_status", "Full farm snapshot: all 8 plants' moisture, sensors, "
+    _fn("get_farm_status", "Full farm snapshot: every active plant's moisture, sensors, "
         "pumps, plus auto-irrigation, guard and alerts."),
     _fn("get_moisture", "Moisture for one plant or all eight.",
         {"plant": {"type": "string", "description": "Plant A-H, or empty for all"}}),

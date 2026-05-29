@@ -3170,7 +3170,7 @@ def init_flora(loop):
         "set_siren": _flora_set_siren,
         "email_images": _flora_email_images,
         "set_notify_email": _flora_set_notify_email,
-        "PLANTS": PLANTS, "RELAY_PINS": RELAY_PINS,
+        "PLANTS": PLANTS, "ACTIVE_PLANTS": ACTIVE_PLANTS, "RELAY_PINS": RELAY_PINS,
         "SENSOR_CHANNELS": SENSOR_CHANNELS,
         "TRIGGER_PCT": TRIGGER_PCT, "STOP_PCT": STOP_PCT, "LOCK_PCT": LOCK_PCT,
         "BURST_ON_S": BURST_ON_S, "BURST_WAIT_S": BURST_WAIT_S,
@@ -3272,6 +3272,34 @@ async def flora_schedule_api(_user: str = Depends(require_auth)):
         return JSONResponse(flora_scheduler.list_tasks())
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.get("/api/flora/status")
+async def flora_status_api(_user: str = Depends(require_auth)):
+    """Tells the dashboard whether FLORA is really running in cloud or offline
+    mode right now, so the Cloud/Offline pill reflects reality on page load
+    instead of always defaulting to Cloud."""
+    providers = []
+    net_ok = False
+    if _FLORA_AVAILABLE:
+        try:
+            import flora_config as _fcfg
+            providers = list(_fcfg.active_providers())
+        except Exception:
+            providers = []
+        try:
+            import flora_agent as _fag
+            net_ok = bool(_fag._internet_reachable())
+        except Exception:
+            net_ok = False
+    cloud_ready = bool(providers) and net_ok
+    return JSONResponse({
+        "ok": True,
+        "providers": providers,
+        "providers_configured": bool(providers),
+        "internet_reachable": net_ok,
+        "effective_mode": "cloud" if cloud_ready else "offline",
+    })
 
 # ── Pump control ───────────────────────────────────────────────────────────────
 @app.get("/api/plants")
