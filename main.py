@@ -775,7 +775,7 @@ for _p, _meta in dict(_PENDING_EXTRA_PLANTS).items():
 _notification_email = None
 _notification_lock = threading.Lock()
 _notify_last_sent = {}
-_EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+_EMAIL_RE = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 ADMIN_ROLE = "admin"
 
 farm_scan_lock = threading.Lock()
@@ -2634,7 +2634,22 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "img-src 'self' data: blob:; "
+        "media-src 'self' blob:; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "object-src 'none'; "
+        "form-action 'self'"
+    ),
 }
+_CSP_SKIP_PATHS = {"/docs", "/redoc", "/openapi.json"}
+MAX_REQUEST_BYTES = 8 * 1024 * 1024  # 8 MB — anything larger is rejected up-front
 UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 def _request_scheme(request: Request) -> str:
@@ -2657,7 +2672,10 @@ def _same_origin_request(request: Request, origin: str | None) -> bool:
     return parsed.scheme == _request_scheme(request) and parsed.netloc == request.headers.get("host", "")
 
 def _apply_security_headers(resp, request: Request):
+    skip_csp = request.url.path in _CSP_SKIP_PATHS
     for key, value in SECURITY_HEADERS.items():
+        if skip_csp and key == "Content-Security-Policy":
+            continue
         resp.headers.setdefault(key, value)
     if _is_https_request(request):
         resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -2766,7 +2784,28 @@ async def lifespan(app_: FastAPI):
     yield
     task.cancel()
 
-app = FastAPI(title="Plant Monitor", lifespan=lifespan)
+_DOCS_PUBLIC = os.environ.get("AIGRI_PUBLIC_DOCS", "").strip().lower() in {"1", "true", "yes", "on"}
+app = FastAPI(
+    title="Plant Monitor",
+    lifespan=lifespan,
+    docs_url="/docs" if _DOCS_PUBLIC else None,
+    redoc_url="/redoc" if _DOCS_PUBLIC else None,
+    openapi_url="/openapi.json" if _DOCS_PUBLIC else None,
+)
+
+@app.middleware("http")
+async def request_size_middleware(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    if cl is not None:
+        try:
+            if int(cl) > MAX_REQUEST_BYTES:
+                return _apply_security_headers(
+                    JSONResponse({"ok": False, "error": "request body too large"}, status_code=413),
+                    request,
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
@@ -4813,7 +4852,7 @@ def main():
 
     threading.Thread(
         target=lambda: uvicorn.run(app, host="0.0.0.0", port=8000,
-                                   log_level="warning"),
+                                   log_level="warning", server_header=False),
         daemon=True,
         name="uvicorn",
     ).start()

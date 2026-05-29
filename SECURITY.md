@@ -10,11 +10,26 @@ exposing the dashboard directly to the public internet should read the
 
 | Version | Status      | Security fixes |
 |---------|-------------|----------------|
-| 1.0.0   | Current     | Yes            |
+| 1.0.1   | Current     | Yes            |
+| 1.0.0   | Superseded  | Upgrade to 1.0.1 |
 | < 1.0.0 | Pre-release | No             |
 
 Only the latest tagged release on the `main` branch receives security fixes.
 When 1.1.x ships, 1.0.x will be supported for 30 days after the cut.
+
+### What's new in 1.0.1 (security patch)
+
+Internal black-box pentest fixes — all changes are in `main.py` and
+`main-hailo.py` only; the dashboard, login page, email templates, theme,
+and all design assets are byte-identical to 1.0.0:
+
+- `/docs`, `/redoc`, `/openapi.json` are **disabled by default**. Opt in
+  with `AIGRI_PUBLIC_DOCS=1` only on a trusted dev box.
+- **Content-Security-Policy** header now shipped on every response
+  (`default-src 'self'`, no framing, no object/embed, locked-down sources).
+- **8 MB request-body cap** enforced at the middleware layer (HTTP 413).
+- Email validator tightened — rejects HTML / control characters.
+- `Server: uvicorn` banner removed.
 
 ## Reporting a vulnerability
 
@@ -99,7 +114,7 @@ We **do not** design against:
 - Side-channel attacks on the Pi's CPU or memory
 - Compromise of the operator's own laptop or phone
 
-## What is hardened today (v1.0.0)
+## What is hardened today (v1.0.1)
 
 The shipped defaults in this release implement:
 
@@ -111,25 +126,53 @@ The shipped defaults in this release implement:
   Plain passwords are never logged or written to disk.
 - **Session tokens** — JWT signed with HS256. The signing key is loaded from
   `JWT_SECRET` env var or auto-generated to `.jwt_secret` (chmod `0o600`,
-  owner-only). Tokens carry a `jti` and can be revoked server-side via the
-  `sessions` table.
+  owner-only). Tokens carry a `jti` checked against the `sessions` table on
+  every request — `/auth/logout` revokes the row, so a stolen-but-revoked
+  token returns 401 even with a valid signature.
 - **Cookie flags** — `pmc_token` is set with `HttpOnly`, `SameSite=Strict`,
   `Path=/`, and `Secure` whenever the request arrived over HTTPS.
-- **Login rate limit** — per-IP throttle on `/auth/login` returning HTTP 429
-  after the threshold; resets on a successful login.
+- **Login throttle (two layers)** — per-IP throttle on `/auth/login`
+  returning HTTP 429 after 5 attempts (in-memory) **plus** a per-user DB
+  lock (`users.locked_until`) that persists across restarts. `X-Forwarded-For`
+  is **not** trusted for the IP key.
 - **SQL** — all queries use parameterized statements (`%s` placeholders with
   tuple arguments). No string concatenation or f-strings build SQL.
 - **CORS** — no `CORSMiddleware` is registered, so by default the browser
   rejects cross-origin requests to the API.
 - **CSRF** — mitigated by `SameSite=Strict` cookies plus JSON-only POST
   endpoints. There is no token-based CSRF defence; see "Known limitations".
+- **Response hardening headers** — every response carries:
+  - `Content-Security-Policy` (default-src self, no framing, no object/embed,
+    inline scripts/styles allowed for the dashboard only, connect-src self,
+    `fonts.googleapis.com` / `fonts.gstatic.com` allow-listed only for the
+    Plus Jakarta Sans webfont used by the original theme)
+  - `X-Frame-Options: DENY` and `frame-ancestors 'none'`
+  - `X-Content-Type-Options: nosniff`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Cross-Origin-Opener-Policy: same-origin`
+  - `Permissions-Policy: camera=(self), microphone=(), geolocation=()`
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains` —
+    automatically emitted when the request arrived over HTTPS.
+- **API spec gating** — `/docs`, `/redoc`, `/openapi.json` are **off by
+  default**. Set `AIGRI_PUBLIC_DOCS=1` on a trusted dev box to enable them.
+  This prevents Swagger UI from leaking the full API surface to anyone who
+  finds the dashboard.
+- **Request-body cap** — middleware rejects any request with
+  `Content-Length > 8 MB` with HTTP 413 before any handler runs. Stops trivial
+  body-amplification DoS on the Pi.
+- **Server banner suppressed** — uvicorn runs with `server_header=False` so
+  fingerprinting tools see no `Server:` header.
 - **No-store cache** — auth-bearing responses are wrapped in `_no_store(...)`
   so credentials and session state are not cached by proxies.
 - **Static assets** — `/img/<sha256>.<ext>` URLs are content-hashed so that
-  cached assets cannot be silently swapped.
+  cached assets cannot be silently swapped. Filename path traversal
+  (`../../etc/passwd`, encoded variants) returns 404, not a file.
+- **Email validator** — `^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`,
+  rejects HTML angle brackets and control characters.
 - **FLORA outbound calls** — API keys are read from env vars, never written
   to the chat history or logs. The chat history (`.flora_chat_history.json`)
-  is git-ignored.
+  is git-ignored. FLORA has a tool-based action model, so prompt injection
+  cannot trigger arbitrary file reads or shell commands.
 
 ## Known limitations
 
@@ -143,9 +186,11 @@ to the public internet without the mitigations in the next section.
 - **No CSRF token** — protection relies on `SameSite=Strict` + JSON-only
   POSTs. A future release will add a double-submit token for
   internet-exposed deployments.
-- **No CSP / X-Frame-Options / X-Content-Type-Options headers** — the
-  dashboard renders user-controlled labels with an `esc()` helper but does
-  not yet emit security response headers.
+- **CSP allows `'unsafe-inline'` for scripts and styles** — the dashboard
+  ships inline `<script>` and `<style>` blocks for a no-build single-file
+  install. The textContent-only rendering on user data still blocks XSS in
+  practice; tightening this to nonce-based CSP would require splitting
+  `design/dashboard.html` and is reserved for a major release.
 - **No 2FA** — single password, single role. A future release will add TOTP.
 - **No audit log** — login attempts hit the rate limiter, but there is no
   durable audit trail of who changed what.
@@ -177,6 +222,8 @@ If you must expose AIgriculture to the public internet, at minimum:
 6. Disable SMTP credentials in `.env` if you do not need email alerts; keep
    the attack surface small.
 7. Rotate `.jwt_secret` and `ADMIN_PASS` after every operator change.
+8. Leave `AIGRI_PUBLIC_DOCS` **unset** in production — only the operator
+   needs the API surface map.
 
 ## Operator checklist before going live
 
@@ -190,6 +237,9 @@ If you must expose AIgriculture to the public internet, at minimum:
 - [ ] Pi OS is up to date (`sudo apt update && sudo apt full-upgrade`)
 - [ ] Python dependencies are up to date
   (`pip list --outdated`)
+- [ ] `AIGRI_PUBLIC_DOCS` is **not** set in `.env`
+- [ ] `curl -I http://<pi>:8000/login | grep -i content-security` shows the
+      CSP header — confirms you are on the 1.0.1+ build
 
 ## Safe-harbour for security researchers
 
