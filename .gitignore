@@ -57,3 +57,11 @@ env/
 *.bak_*
 backups/
 Project-backup/
+
+# ─── ML weights (Ultralytics auto-downloads on first run) ────────────────
+yolov8n.pt
+yolov8s.pt
+yolov8m.pt
+yolov8l.pt
+yolov8x.pt
+*.hef

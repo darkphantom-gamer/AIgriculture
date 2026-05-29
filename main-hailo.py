@@ -376,6 +376,32 @@ FARM_MONITOR_DISEASE_LABELS = BASE_DIR / "farm_monitor_disease_labels.json"
 FARM_MONITOR_RIPENESS_LABELS = BASE_DIR / "farm_monitor_ripeness_labels.json"
 
 
+def _ensure_writable_dir(path, friendly_name: str = "directory") -> None:
+    """Make ``path`` exist and be writable by us.
+
+    Old installs sometimes left this directory owned by ``root`` (e.g. from a
+    legacy Docker run). Raise a clear, fixable error instead of a bare
+    ``[Errno 13] Permission denied`` further downstream.
+    """
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except PermissionError as e:
+        raise PermissionError(
+            f"{friendly_name} '{path}' is not writable. "
+            f"Run:  sudo chown -R $USER:$USER '{path}'  and retry."
+        ) from e
+    if not os.access(path, os.W_OK):
+        try:
+            os.chmod(path, 0o755)
+        except OSError:
+            pass
+        if not os.access(path, os.W_OK):
+            raise PermissionError(
+                f"{friendly_name} '{path}' is not writable by the current user. "
+                f"Run:  sudo chown -R $USER:$USER '{path}'  and retry."
+            )
+
+
 # ── CDN-style content hashing ──────────────────────────────────────────────────
 # Public URLs intentionally expose only an opaque content hash, never the original
 # asset or event filename. The original filename remains internal on disk.
@@ -2014,6 +2040,7 @@ def run_farm_monitor_scan(manual: bool = False):
         return
     try:
         started = datetime.now()
+        _ensure_writable_dir(FARM_MONITOR_WORK, "Farm Monitor work folder")
         scan_dir = FARM_MONITOR_WORK / started.strftime("scan_%Y%m%d_%H%M%S")
         scan_dir.mkdir(parents=True, exist_ok=True)
         _farm_status_update(
@@ -3487,6 +3514,12 @@ SENSOR_UI_PATCH = r"""
           btn.dataset.pumpOn='false';
           btn.style.color='';
           btn.title='Sensor offline: admin manual override available';
+          // The original dashboard.html renders btn-e..btn-h with no onclick
+          // (just <button ... disabled>Sensor Only</button>) so clicks did
+          // nothing even after we unlocked them. Wire the handler now.
+          if(!btn.onclick && typeof window.manualPump==='function'){
+            btn.onclick=function(){window.manualPump(p);};
+          }
         }
         const row=document.getElementById('ov-'+p);
         if(row){
@@ -3577,6 +3610,10 @@ SENSOR_UI_PATCH = r"""
       '<div class="pc-div"></div>'+
       '<button class="btn-water locked" id="btn-'+p+'" disabled>Sensor Only</button>';
     grid.appendChild(card);
+    // Wire the click handler so admin manual override works as soon as the
+    // sensor goes offline (matches the SENSOR_UI_PATCH offline-unlock branch).
+    const _b=card.querySelector('#btn-'+p);
+    if(_b)_b.onclick=function(){window.manualPump&&window.manualPump(p);};
   }
   function applyExtraPlantVisibility(){
     let act=[];
@@ -3611,14 +3648,53 @@ SENSOR_UI_PATCH = r"""
     const b=document.getElementById('btn-add-sensor');
     if(b)b.style.display=isViewer()?'none':'inline-flex';
   }
+  // Ensure every plant water button has its click handler wired. The original
+  // dashboard.html ships btn-e..btn-h as `<button ... disabled>Sensor Only</button>`
+  // with NO onclick, so even after the SENSOR_UI_PATCH unlocks them clicks
+  // silently did nothing. This restores click-to-water for all plants.
+  function ensurePumpHandlers(){
+    if(typeof window.manualPump!=='function')return;
+    for(const p of _plantUniverse()){
+      const btn=document.getElementById('btn-'+p);
+      if(btn && !btn.onclick) btn.onclick=function(){window.manualPump(p);};
+    }
+  }
+  // Friendlier toast for the 409 "sensor_only" response so the user knows
+  // the relay simply isn't wired up for this plant (vs. a generic error).
+  (function wrapManualPump(){
+    const orig=window.manualPump;
+    if(typeof orig!=='function' || orig.__sensorOnlyPatch) return;
+    const wrapped=async function(p){
+      const _toast=window.showToast||function(){};
+      const origFetch=window.fetch;
+      window.fetch=async function(u,o){
+        const r=await origFetch(u,o);
+        if(typeof u==='string' && u.indexOf('/api/pump/')===0 && r.status===409){
+          try{
+            const data=await r.clone().json();
+            if(data && data.error==='sensor_only'){
+              _toast('🔧 Plant '+p.toUpperCase()+' has no pump wired up — sensor-only plant');
+            }
+          }catch(_){}
+        }
+        return r;
+      };
+      try{ return await orig(p); }
+      finally{ window.fetch=origFetch; }
+    };
+    wrapped.__sensorOnlyPatch=true;
+    window.manualPump=wrapped;
+  })();
   function start(){
     ensureAddBtn();
     applyExtraPlantVisibility();
     applyAddBtnVisibility();
+    ensurePumpHandlers();
     setInterval(function(){
       ensureAddBtn();
       applyExtraPlantVisibility();
       applyAddBtnVisibility();
+      ensurePumpHandlers();
     },1500);
   }
   if(document.readyState==='complete'||document.readyState==='interactive'){
@@ -4353,12 +4429,38 @@ def _inject_dashboard_integration_patch(html: str) -> str:
         return html.replace("</body>", DASHBOARD_INTEGRATION_PATCH + "</body>")
     return html + DASHBOARD_INTEGRATION_PATCH
 
+
+# Card spacing polish — applied UNCONDITIONALLY since the original theme has no
+# matching guard token. Adds breathing room between cards / sections so a tiny
+# "Plant A + Plant B only" deployment doesn't feel cramped. CSS variables,
+# colours, fonts, radii — all untouched.
+SPACING_POLISH_PATCH = r"""
+<style data-aig-spacing-polish>
+.home-grid{gap:18px}
+.plant-grid{gap:20px;margin-bottom:18px}
+.plant-card{padding:18px 22px}
+.avg-strip{margin-bottom:18px}
+.avg-strip .avg-right{gap:14px;flex-wrap:wrap}
+#btn-add-sensor{margin-left:auto}
+.home-right > * + *{margin-top:14px}
+</style>
+"""
+
+def _inject_spacing_polish(html: str) -> str:
+    if "data-aig-spacing-polish" in html:
+        return html
+    if "</body>" in html:
+        return html.replace("</body>", SPACING_POLISH_PATCH + "</body>")
+    return html + SPACING_POLISH_PATCH
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(_user: str = Depends(require_auth)):
     html_path = Path(__file__).parent / "dashboard.html"
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
-        html = _inject_dashboard_integration_patch(_inject_sensor_ui_patch(html))
+        html = _inject_spacing_polish(
+            _inject_dashboard_integration_patch(_inject_sensor_ui_patch(html))
+        )
         return _no_store(HTMLResponse(_apply_content_hashed_assets(html)))
     return _no_store(HTMLResponse("<h1>dashboard.html not found alongside main.py</h1>",
                                   status_code=404))
@@ -4572,6 +4674,10 @@ def main():
 
     threading.Thread(target=sensor_irr_loop, daemon=True, name="sensor_irr").start()
     threading.Thread(target=_siren_loop, daemon=True, name="intruder_siren").start()
+    try:
+        _ensure_writable_dir(FARM_MONITOR_WORK, "Farm Monitor work folder")
+    except PermissionError as _e:
+        hailo_logger.warning(str(_e))
     threading.Thread(target=farm_monitor_camera_loop, daemon=True, name="farm_monitor_camera").start()
     threading.Thread(target=farm_monitor_scheduler_loop, daemon=True, name="farm_monitor_scheduler").start()
 

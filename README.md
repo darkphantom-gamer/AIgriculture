@@ -27,7 +27,7 @@ Monitor soil moisture, automate irrigation, detect disease, and chat with your f
 
 | Subsystem | What you get |
 |-----------|-------------|
-| **Irrigation** | plant burst irrigation with auto-mode (trigger at 45 % moisture, stop at 65 %, hardlock at 70 %) |
+| **Irrigation** | Burst irrigation for as many plants as you want, with auto-mode (trigger at 45 % moisture, stop at 65 %, hardlock at 70 %) |
 | **FarmMonitor** | Periodic YOLO scan for disease (5 classes) and ripeness (5 stages); email alert on detection |
 | **Security camera** | Real-time person / animal detection with dual-buzzer siren; MJPEG stream in dashboard |
 | **FLORA AI** | Multi-provider chat assistant (Groq / Cerebras / Mistral / Gemini) with farm tool use; offline fallback |
@@ -52,7 +52,7 @@ Don't have a real farm yet? **You don't need one.** Here's the smallest kit that
 | # | Component | Why you need it | Beginner tip |
 |---|-----------|-----------------|--------------|
 | 1 | **Raspberry Pi 4 / 5** (4 GB+, 8 GB recommended)<br><img src="docs/assets/hardware/Raspberrypi_5.png" width="240"> | Runs the whole stack — dashboard, AI, irrigation logic. | Pi 5 is fastest, but a Pi 4 (2 GB) is enough to try it. Flash **Raspberry Pi OS Bookworm 64-bit**. |
-| 2 | **ADS1115 16-bit I²C ADC**<br><img src="docs/assets/hardware/adc_module.png" width="240"> | The Pi has no analog input. Capacitive moisture sensors are analog, so the ADC translates them into numbers the Pi can read. | One ADS1115 = 4 sensors. Buy **two** (`0x48` + `0x49`) for the default 8-plant build, or up to **four** (`0x48`-`0x4B`) for 16 plants. |
+| 2 | **ADS1115 16-bit I²C ADC**<br><img src="docs/assets/hardware/adc_module.png" width="240"> | The Pi has no analog input. Capacitive moisture sensors are analog, so the ADC translates them into numbers the Pi can read. | One ADS1115 = 4 sensors. Add as many as you need — up to **four** (`0x48`-`0x4B`) for 16 plants, or even more buses for bigger farms. |
 | 3 | **Capacitive soil-moisture sensor**<br><img src="docs/assets/hardware/moisture_sensor.png" width="240"> | Reads how wet the soil is — the input that drives auto-irrigation. | Use **capacitive** (yellow PCB), not the cheap resistive ones — they corrode within weeks. One per plant. |
 | 4 | **8-channel relay board** (active-LOW, opto-isolated)<br><img src="docs/assets/hardware/relay_module.png" width="240"> | Lets the Pi switch the pumps on and off. The Pi itself cannot supply pump power. | Make sure it's labelled **5 V trigger, opto-isolated**, otherwise it won't fire from the Pi's 3.3 V pins. |
 | 5 | **Small 5 V or 12 V DC water pump**<br><img src="docs/assets/hardware/water_pump.png" width="240"> | The thing that actually waters the plant. | One per plant. **Power them from a separate supply, never from the Pi's 5 V rail.** The Pi only controls the relay, not the current. |
@@ -123,7 +123,7 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/AIgriculture
-ExecStart=/usr/bin/python /home/pi/AIgriculture/main.py --security-cam /dev/video0
+ExecStart=/usr/bin/python3 /home/pi/AIgriculture/main.py --security-cam /dev/video0
 Restart=on-failure
 
 [Install]
@@ -207,6 +207,8 @@ Both `main.py` and `main-hailo.py` start the Meshtastic ↔ FLORA bridge **in th
 - Listens on any channel or DM
 - Forwards messages to FLORA via the in-process HTTP API
 - Replies to the sender on the same channel the request arrived on
+
+![FLORA replying over a real LoRa mesh](docs/img/meshtastic-flora-proof.jpg)
 
 If the Meshtastic library isn't installed or the connection drops, the bridge logs a warning and main.py keeps running — never blocks the dashboard.
 

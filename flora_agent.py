@@ -13,6 +13,8 @@ import asyncio
 import json
 import random
 import re
+import socket
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -26,7 +28,34 @@ except ImportError:  # pragma: no cover
     _OPENAI_OK = False
 
 _QUOTA = object()        # sentinel: provider exhausted, advance to the next one
+_OFFLINE = object()      # sentinel: no internet at all, skip cloud entirely
 _gemini_rr = 0           # round-robin index across Gemini keys
+
+# Fast network reachability check, cached for a short window. This lets FLORA
+# fall back to offline IMMEDIATELY when there is no internet, instead of waiting
+# for every provider's HTTPS timeout (which can be 30s+ × N providers).
+_NET_OK_TS = 0.0
+_NET_OK_CACHED = False
+_NET_OK_TTL = 30.0       # re-check at most once every 30s
+
+def _internet_reachable() -> bool:
+    """Return True if a public host is reachable on TCP 443 within ~1.2s."""
+    global _NET_OK_TS, _NET_OK_CACHED
+    now = time.time()
+    if now - _NET_OK_TS < _NET_OK_TTL:
+        return _NET_OK_CACHED
+    ok = False
+    # Try Cloudflare first, then Google DNS — both very reliable globally.
+    for host in ("1.1.1.1", "8.8.8.8"):
+        try:
+            with socket.create_connection((host, 443), timeout=1.2):
+                ok = True
+                break
+        except OSError:
+            continue
+    _NET_OK_TS = now
+    _NET_OK_CACHED = ok
+    return ok
 
 
 # ── System prompt ───────────────────────────────────────────────────────────────
@@ -839,6 +868,22 @@ async def handle_message(data: dict, broadcast) -> None:
         return
 
     if mode == "offline" or not providers:
+        await broadcast({"type": "typing", "active": True})
+        try:
+            await _run_offline(text, broadcast)
+        finally:
+            await broadcast({"type": "typing", "active": False})
+        return
+
+    # Quick reachability probe. If the Pi has no internet (Wi-Fi down, no SIM,
+    # captive portal, etc.), skip the cloud entirely instead of burning ~30s
+    # per provider waiting for HTTPS to time out. FLORA must reliably switch
+    # to offline whenever cloud processing is not actually available.
+    loop = asyncio.get_running_loop()
+    net_ok = await loop.run_in_executor(None, _internet_reachable)
+    if not net_ok:
+        await broadcast({"type": "auto_offline",
+                         "reason": "No internet — using offline farm tools."})
         await broadcast({"type": "typing", "active": True})
         try:
             await _run_offline(text, broadcast)

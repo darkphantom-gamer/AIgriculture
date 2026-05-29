@@ -27,12 +27,21 @@
 
 | 子系统 | 提供的功能 |
 |--------|-----------|
-| **灌溉** | 8 盆植物的脉冲式灌溉，自动模式（45 % 启动、65 % 停止、70 % 硬锁） |
+| **灌溉** | 任意盆数的脉冲式灌溉，自动模式（45 % 启动、65 % 停止、70 % 硬锁） |
 | **FarmMonitor** | 定时 YOLO 扫描 — 病害（5 类）和成熟度（5 阶段），检出后发送邮件提醒 |
 | **安防摄像头** | 实时人/动物检测，双蜂鸣器警报，仪表盘 MJPEG 视频流 |
 | **FLORA AI** | 多服务商聊天助手（Groq / Cerebras / Mistral / Gemini），可调用农场工具，离线降级 |
 | **Meshtastic** | LoRa 桥接 — FLORA 会回应你 mesh 网络上的任意频道或私聊 |
 | **仪表盘** | 暗色单页应用：概览、摄像头、AI 聊天、事件日志、设置 |
+
+仓库提供 **两个入口** — 按硬件挑一个：
+
+| 脚本 | 适用场景 | 安防摄像头推理引擎 |
+|------|----------|-------------------|
+| **`python main.py`** | 默认。任意 Raspberry Pi (4 / 5) 或笔记本都可以跑。 | Ultralytics YOLOv8n 在 CPU 上跑，带 frame-skip — 普通 Pi 即可。 |
+| **`python main-hailo.py`** | 已安装 Hailo-10H AI HAT 时。 | Hailo HEF 流水线 — 推理快约 10×。 |
+
+其余部分（仪表盘、登录、FLORA、FarmMonitor、灌溉、邮件提醒、存储、Meshtastic）两脚本 **完全一致**。唯一区别就是安防摄像头的推理引擎。
 
 ---
 
@@ -43,7 +52,7 @@
 | # | 部件 | 为什么需要 | 新手提示 |
 |---|------|------------|-----------|
 | 1 | **Raspberry Pi 4 / 5**（4 GB+，推荐 8 GB）<br><img src="../assets/hardware/Raspberrypi_5.png" width="240"> | 运行整个系统 — 仪表盘、AI、灌溉逻辑。 | Pi 5 最快，但 Pi 4 (2 GB) 也可以试。烧录 **Raspberry Pi OS Bookworm 64-bit**。 |
-| 2 | **ADS1115 16-bit I²C ADC**<br><img src="../assets/hardware/adc_module.png" width="240"> | Pi 没有模拟输入；电容式湿度传感器是模拟信号，ADC 把它转成数字。 | 一片 ADS1115 = 4 个传感器。默认 8 盆需要 **两片**（`0x48` + `0x49`），最多 **四片**（`0x48`-`0x4B`）支持 16 盆。 |
+| 2 | **ADS1115 16-bit I²C ADC**<br><img src="../assets/hardware/adc_module.png" width="240"> | Pi 没有模拟输入；电容式湿度传感器是模拟信号，ADC 把它转成数字。 | 一片 ADS1115 = 4 个传感器。按需添加 — **四片**（`0x48`-`0x4B`）可支持 16 盆，再加 I²C 总线还能更多。 |
 | 3 | **电容式土壤湿度传感器**<br><img src="../assets/hardware/moisture_sensor.png" width="240"> | 读取土壤湿度 — 自动灌溉的输入。 | 一定选 **电容式**（黄色 PCB），便宜的电阻式几周就会腐蚀。每盆植物一个。 |
 | 4 | **8 路继电器板**（active-LOW、光耦隔离）<br><img src="../assets/hardware/relay_module.png" width="240"> | 让 Pi 切换水泵开关。Pi 自身无法供给水泵电流。 | 必须标注 **5V trigger、opto-isolated**，否则 3.3V GPIO 触发不了。 |
 | 5 | **小型 5V 或 12V DC 水泵**<br><img src="../assets/hardware/water_pump.png" width="240"> | 真正给植物浇水的部件。 | 每盆一个。**务必单独供电，绝不能用 Pi 的 5V 引脚。** Pi 只控制继电器。 |
@@ -138,6 +147,36 @@ python main.py
 ```
 
 通过 `wiring.yaml` 可以重映射任意引脚、切换 active-high/low、修改蜂鸣器数量和频率、重新校准湿度传感器 — 全程不动代码。
+
+---
+
+## 📡 Meshtastic LoRa 桥（进程内）
+
+在 `.env` 中设置 `MESH_ENABLED=true`，`main.py` 和 `main-hailo.py` 都会在**同一个进程内**启动 Meshtastic ↔ FLORA 桥，不需要额外启动服务。该桥：
+
+- 通过 TCP 连接本地 `meshtasticd`（默认 `localhost:4403`）
+- 监听任意频道或私聊
+- 通过进程内 HTTP API 转发消息给 FLORA
+- 在收到请求的同一频道回复
+
+![Meshtastic ↔ FLORA 真实 LoRa 聊天](../img/meshtastic-flora-proof.jpg)
+
+Meshtastic 库未安装或连接断开时，桥只打印警告日志，`main.py` 继续运行 — 仪表盘永不阻塞。
+
+`MESH_*` 全部可调参数（允许节点、回复模式、频道过滤）见 `.env.example`。
+
+---
+
+## ➕ 运行时增加传感器
+
+仪表盘右上角有 **"+ Add sensors"** 按钮（仅管理员可见）。点击后程序会：
+
+1. 扫描所有 4 个 ADS1115 地址（`0x48`-`0x4B`）× 各 4 通道
+2. 找到读数合理且尚未占用的通道
+3. 把它们注册为新植物（字母 `i`-`p`，最多 16 个）并持久化到 `.plants.json`
+4. 立即开始轮询 — 无需重启或改代码
+
+适合从 2 个传感器的试装方案开始、后续扩容的场景。
 
 ---
 
