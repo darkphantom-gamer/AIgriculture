@@ -21,6 +21,40 @@ from email.message import EmailMessage
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
+
+def _load_env_file() -> None:
+    """Load `.env` (next to main.py) into os.environ so `python main.py` Just Works.
+
+    The README promises "edit .env then python main.py" — but without this
+    loader, FastAPI / our os.getenv() calls below see an empty environment and
+    every secret looks unset (you get the misleading `using password: NO`
+    MariaDB error even when DB_PASS is filled in). We don't pull in
+    python-dotenv: tiny KEY=VALUE parser is enough and keeps requirements
+    lean.
+    """
+    env_path = Path(__file__).resolve().parent / ".env"
+    if not env_path.exists():
+        return
+    try:
+        for raw in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            if not key or key in os.environ:
+                continue  # already set in the real environment — that wins
+            value = value.strip()
+            # Strip a single matching pair of surrounding quotes.
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            os.environ[key] = value
+    except OSError:
+        pass
+
+
+_load_env_file()
+
 os.environ["GST_PLUGIN_FEATURE_RANK"] = "vaapidecodebin:NONE"
 
 # Stream performance defaults for Pi 5 + USB camera. These do not change
@@ -2234,9 +2268,13 @@ def _db_init():
                         ph = _pwd_ctx.hash(seed_pass)
                     else:
                         ph = "BCRYPT_UNAVAILABLE"
+                    # Seed with neutral defaults derived from the username — the
+                    # operator can edit display_name / avatar from Settings →
+                    # Profile and we MUST NOT overwrite their choices on later
+                    # boots.
                     cur.execute(
                         "INSERT INTO users (username, password_hash, role, display_name, avatar_url) VALUES (%s, %s, %s, %s, %s)",
-                        (seed_user, ph, ADMIN_ROLE, "Farm Admin", _asset_url("farmer.png"))
+                        (seed_user, ph, ADMIN_ROLE, seed_user, _asset_url("farmer.png"))
                     )
                     conn.commit()
                     if auto_generated:
@@ -2254,10 +2292,13 @@ def _db_init():
                             f"Default user '{seed_user}' seeded in DB — "
                             f"please change the password from the dashboard on first login."
                         )
+                # Refresh ONLY the role of the configured admin user. We do not
+                # overwrite display_name / avatar_url here because the operator
+                # may have customised them — that's a profile preference, not a
+                # boot-time invariant.
                 cur.execute(
-                    "UPDATE users SET role=%s, display_name=%s, avatar_url=%s WHERE username=%s",
-                    (ADMIN_ROLE, "Farm Admin", _asset_url("farmer.png"),
-                     os.getenv("ADMIN_USER", "admin"))
+                    "UPDATE users SET role=%s WHERE username=%s",
+                    (ADMIN_ROLE, os.getenv("ADMIN_USER", "admin"))
                 )
         hailo_logger.info("Database tables ready")
     except Exception as e:
@@ -2443,10 +2484,13 @@ def _valid_session_user(request: Request):
     return payload.get("sub")
 
 def _get_user_profile(username: str) -> dict:
+    # Defaults are derived from the supplied username — we never invent or
+    # hardcode display_name / role. The DB lookup below replaces these with the
+    # authoritative row when it succeeds.
     profile = {
         "username": username or "",
         "role": ADMIN_ROLE,
-        "display_name": "Farm Admin",
+        "display_name": username or "",
         "avatar_url": _asset_url("farmer.png"),
     }
     if not username or not MYSQL_AVAILABLE:
