@@ -423,8 +423,49 @@ def _extract_farm_cam_arg() -> str:
     return source
 
 
+class _Picamera2VideoCapture:
+    """cv2.VideoCapture-compatible wrapper around picamera2 for CSI cameras.
+
+    Modern Pi OS (Bookworm+) hands CSI cameras to libcamera, so opening
+    /dev/video0 via V4L2 in OpenCV looks "open" but `read()` returns no
+    frames. picamera2 is the working path; this adapter keeps the existing
+    `cap.read()` / `cap.isOpened()` / `cap.release()` interface.
+    """
+    def __init__(self, width: int = 1280, height: int = 720, cam_index: int = 0):
+        if not _PICAMERA2_AVAILABLE or _Picamera2 is None:
+            raise RuntimeError("picamera2 not installed")
+        import cv2 as _cv2
+        try:
+            self._cam = _Picamera2(cam_index)
+        except TypeError:
+            self._cam = _Picamera2()
+        cfg = self._cam.create_preview_configuration(
+            main={"size": (int(width), int(height)), "format": "RGB888"}
+        )
+        self._cam.configure(cfg)
+        self._cam.start()
+        self._cv2 = _cv2
+        self._opened = True
+    def isOpened(self): return bool(self._opened)
+    def read(self):
+        if not self._opened: return False, None
+        try:
+            arr = self._cam.capture_array()
+            return True, self._cv2.cvtColor(arr, self._cv2.COLOR_RGB2BGR)
+        except Exception:
+            return False, None
+    def release(self):
+        try:
+            if self._opened: self._cam.stop()
+        except Exception: pass
+        self._opened = False
+    def set(self, *_a, **_kw): return False
+    def get(self, *_a, **_kw): return 0.0
+
+
 def _open_farm_video_source(src: str):
-    """Open any camera source string for OpenCV (USB, CSI, RTSP, HTTP, index)."""
+    """Open any camera source string for OpenCV (USB, CSI, RTSP, HTTP, index).
+    CSI sources route through picamera2 when available (libcamera-only path)."""
     import cv2 as _cv2
     s = (src or "").strip()
     if not s:
@@ -436,6 +477,13 @@ def _open_farm_video_source(src: str):
         return _cv2.VideoCapture(s, _cv2.CAP_V4L2)
     if s.lower() in ("rpi", "csi", "csi:0", "csi:1"):
         idx = 1 if s.lower() == "csi:1" else 0
+        if _PICAMERA2_AVAILABLE:
+            try:
+                return _Picamera2VideoCapture(cam_index=idx)
+            except Exception as e:
+                hailo_logger.warning(
+                    f"picamera2 init failed ({e}); falling back to V4L2 /dev/video{idx}"
+                )
         return _cv2.VideoCapture(f"/dev/video{idx}", _cv2.CAP_V4L2)
     try:
         return _cv2.VideoCapture(int(s))
@@ -4598,7 +4646,9 @@ async def dashboard(_user: str = Depends(require_auth)):
 def _extract_security_cam_arg():
     """Remove --security-cam from sys.argv and return its source if provided."""
     global SECURITY_CAMERA_SOURCE
-    source = os.getenv("SECURITY_CAMERA_SOURCE", "").strip()
+    env_source = os.getenv("SECURITY_CAMERA_SOURCE", "").strip()
+    source = env_source
+    explicit = bool(env_source)
     cleaned = [sys.argv[0]]
     i = 1
     while i < len(sys.argv):
@@ -4606,18 +4656,27 @@ def _extract_security_cam_arg():
         if arg == "--security-cam":
             if i + 1 < len(sys.argv):
                 source = sys.argv[i + 1]
+                explicit = True
                 i += 2
                 continue
         elif arg.startswith("--security-cam="):
             source = arg.split("=", 1)[1]
+            explicit = True
             i += 1
             continue
         cleaned.append(arg)
         i += 1
     sys.argv = cleaned
-    # Default to RPi camera when picamera2 is available and no explicit source given
-    if not source and _PICAMERA2_AVAILABLE:
-        source = "rpi"
+    # Only auto-default to RPi CSI when the user didn't pick a source AND
+    # FarmMonitor isn't already grabbing the same CSI hardware.
+    if not source and not explicit and _PICAMERA2_AVAILABLE:
+        farm_uses_csi = (
+            USE_RPICAM
+            or (FARM_MONITOR_CAMERA or "").strip().lower()
+               in ("rpi", "csi", "csi:0", "csi:1")
+        )
+        if not farm_uses_csi:
+            source = "rpi"
     SECURITY_CAMERA_SOURCE = source
     return source
 

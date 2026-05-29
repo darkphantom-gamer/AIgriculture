@@ -1311,8 +1311,59 @@ async def ws_push_task():
 # dashboard, /api routes, and FLORA tools all read from — so the UX is
 # identical to the Hailo build.
 
+class _Picamera2VideoCapture:
+    """cv2.VideoCapture-compatible wrapper around picamera2 for CSI cameras.
+
+    On modern Raspberry Pi OS (Bookworm+) the CSI camera is owned by libcamera
+    and can't be opened via V4L2 / OpenCV directly — opening /dev/video0 looks
+    successful but `cap.read()` returns no frames. picamera2 is the correct
+    path. This adapter lets the rest of the pipeline keep its `cap.read()` /
+    `cap.isOpened()` / `cap.release()` interface unchanged.
+    """
+    def __init__(self, width: int = 1280, height: int = 720, cam_index: int = 0):
+        if not _PICAMERA2_AVAILABLE or _Picamera2 is None:
+            raise RuntimeError("picamera2 not installed")
+        try:
+            self._cam = _Picamera2(cam_index)
+        except TypeError:
+            # Older picamera2 versions don't accept a positional camera index.
+            self._cam = _Picamera2()
+        cfg = self._cam.create_preview_configuration(
+            main={"size": (int(width), int(height)), "format": "RGB888"}
+        )
+        self._cam.configure(cfg)
+        self._cam.start()
+        self._opened = True
+
+    def isOpened(self) -> bool:
+        return bool(self._opened)
+
+    def read(self):
+        if not self._opened or cv2 is None:
+            return False, None
+        try:
+            arr = self._cam.capture_array()
+            return True, cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+        except Exception:
+            return False, None
+
+    def release(self):
+        try:
+            if self._opened:
+                self._cam.stop()
+        except Exception:
+            pass
+        self._opened = False
+
+    def set(self, *_a, **_kw):  # most CAP_PROP_* don't apply — no-op
+        return False
+
+    def get(self, *_a, **_kw):
+        return 0.0
+
+
 def _open_video_source(source: str):
-    """Return an open cv2.VideoCapture for CSI / USB / RTSP / index inputs."""
+    """Return an open VideoCapture (or picamera2 adapter) for CSI / USB / RTSP / HTTP / index inputs."""
     if cv2 is None:
         return None
     src = (source or "").strip()
@@ -1324,9 +1375,17 @@ def _open_video_source(source: str):
     if src.startswith("/dev/"):
         return cv2.VideoCapture(src, cv2.CAP_V4L2)
     if src.lower() in ("rpi", "csi", "csi:0", "csi:1"):
-        # libcamera fronts /dev/video0 on current Pi OS. CSI cameras work as V4L2.
-        idx = 1 if src.lower() == "csi:1" else 0
-        return cv2.VideoCapture(f"/dev/video{idx}", cv2.CAP_V4L2)
+        # CSI cameras on Bookworm+ are owned by libcamera — V4L2 capture silently
+        # returns empty frames. Prefer picamera2 when installed.
+        cam_index = 1 if src.lower() == "csi:1" else 0
+        if _PICAMERA2_AVAILABLE:
+            try:
+                return _Picamera2VideoCapture(cam_index=cam_index)
+            except Exception as e:
+                hailo_logger.warning(
+                    f"picamera2 init failed ({e}); falling back to V4L2 /dev/video{cam_index}"
+                )
+        return cv2.VideoCapture(f"/dev/video{cam_index}", cv2.CAP_V4L2)
     try:
         return cv2.VideoCapture(int(src))
     except ValueError:
@@ -4652,7 +4711,9 @@ async def dashboard(_user: str = Depends(require_auth)):
 def _extract_security_cam_arg():
     """Remove --security-cam from sys.argv and return its source if provided."""
     global SECURITY_CAMERA_SOURCE
-    source = os.getenv("SECURITY_CAMERA_SOURCE", "").strip()
+    env_source = os.getenv("SECURITY_CAMERA_SOURCE", "").strip()
+    source = env_source
+    explicit = bool(env_source)
     cleaned = [sys.argv[0]]
     i = 1
     while i < len(sys.argv):
@@ -4660,18 +4721,30 @@ def _extract_security_cam_arg():
         if arg == "--security-cam":
             if i + 1 < len(sys.argv):
                 source = sys.argv[i + 1]
+                explicit = True
                 i += 2
                 continue
         elif arg.startswith("--security-cam="):
             source = arg.split("=", 1)[1]
+            explicit = True
             i += 1
             continue
         cleaned.append(arg)
         i += 1
     sys.argv = cleaned
-    # Default to RPi camera when picamera2 is available and no explicit source given
-    if not source and _PICAMERA2_AVAILABLE:
-        source = "rpi"
+    # Auto-default to the RPi CSI camera ONLY when:
+    #   1. picamera2 is available
+    #   2. the user didn't pass --security-cam or set SECURITY_CAMERA_SOURCE
+    #   3. FarmMonitor isn't already claiming the CSI camera (else both threads
+    #      race for the same hardware and the second to start gets nothing)
+    if not source and not explicit and _PICAMERA2_AVAILABLE:
+        farm_uses_csi = (
+            USE_RPICAM
+            or (FARM_MONITOR_CAMERA or "").strip().lower()
+               in ("rpi", "csi", "csi:0", "csi:1")
+        )
+        if not farm_uses_csi:
+            source = "rpi"
     SECURITY_CAMERA_SOURCE = source
     return source
 
