@@ -185,6 +185,10 @@ python main.py
 
 ![Результат FarmMonitor](../assets/Farm_Monitor_Result.png)
 
+![Болезнь обнаружена — живой скан](../assets/disease_detected.jpg)
+
+*Реальный скан FarmMonitor обнаружил **Anthracnose Fruit Rot (антракнозную гниль плодов)** с уверенностью 0.87 — больная клубника распознана в реальном времени, записана в дашборд и отправлена как e-mail-уведомление.*
+
 Результаты сохраняются в `runtime/farmmonitor/` как JSON + JPEG. Если найдена болезнь и настроен SMTP — отправляется e-mail.
 
 ---

@@ -185,6 +185,10 @@ python main.py
 
 ![FarmMonitor 结果](../assets/Farm_Monitor_Result.png)
 
+![检测到病害 — 实时扫描](../assets/disease_detected.jpg)
+
+*一次实时 FarmMonitor 扫描以 0.87 置信度捕获 **Anthracnose Fruit Rot（炭疽病果实腐烂）** — 病果被实时识别、记录到仪表盘并通过邮件发出告警。*
+
 结果以 JSON + JPEG 保存在 `runtime/farmmonitor/`。若检测到病害且 SMTP 已配置，则发送邮件告警。
 
 ---

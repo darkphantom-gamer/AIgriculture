@@ -185,6 +185,10 @@ python main.py
 
 ![FarmMonitor 結果](../assets/Farm_Monitor_Result.png)
 
+![病害を検出 — ライブスキャン](../assets/disease_detected.jpg)
+
+*実際の FarmMonitor スキャンが **Anthracnose Fruit Rot（炭疽病による果実腐敗）** を信頼度 0.87 で検出 — 病気のイチゴをリアルタイムで捉え、ダッシュボードに記録し、メールアラートとして送信します。*
+
 結果は `runtime/farmmonitor/` に JSON + JPEG として保存されます。病害が検出されて SMTP が設定されていれば、メールでアラートを送信します。
 
 ---

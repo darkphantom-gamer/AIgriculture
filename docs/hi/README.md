@@ -185,6 +185,10 @@ python main.py
 
 ![FarmMonitor परिणाम](../assets/Farm_Monitor_Result.png)
 
+![रोग पकड़ा गया — लाइव स्कैन](../assets/disease_detected.jpg)
+
+*एक लाइव FarmMonitor स्कैन ने **Anthracnose Fruit Rot (एंथ्रेक्नोज़ फल सड़न)** को 0.87 कॉन्फिडेंस पर पकड़ा — रोगग्रस्त स्ट्रॉबेरी रियल-टाइम में पकड़ी गई, डैशबोर्ड पर लॉग हुई और ईमेल अलर्ट भेजा गया।*
+
 परिणाम `runtime/farmmonitor/` में JSON + JPEG के रूप में सेव होते हैं। रोग दिखने पर और SMTP सेट हो तो ईमेल अलर्ट जाता है।
 
 ---

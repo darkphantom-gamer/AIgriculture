@@ -234,6 +234,10 @@ Runs scheduled full-field scans. Captures a batch of frames, filters blurry ones
 
 ![Farm Monitor result](docs/assets/Farm_Monitor_Result.png)
 
+![Disease detected — live scan](docs/assets/disease_detected.jpg)
+
+*A live FarmMonitor scan catching **Anthracnose Fruit Rot** at 0.87 confidence — a diseased strawberry flagged in real time, logged to the dashboard, and sent out as an email alert.*
+
 Results are saved to `runtime/farmmonitor/` as JSON + JPEG. If disease is detected and SMTP is configured, an email alert is sent.
 
 ---
