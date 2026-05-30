@@ -867,7 +867,20 @@ async def handle_message(data: dict, broadcast) -> None:
             await broadcast({"type": "typing", "active": False})
         return
 
-    if mode == "offline" or not providers:
+    if mode == "offline":
+        # Operator explicitly chose Offline — run silently, no banner.
+        await broadcast({"type": "typing", "active": True})
+        try:
+            await _run_offline(text, broadcast)
+        finally:
+            await broadcast({"type": "typing", "active": False})
+        return
+
+    if not providers:
+        # Operator clicked Cloud, but no provider key is configured. Tell the
+        # dashboard to flip the pill back to Offline and explain why.
+        await broadcast({"type": "auto_offline",
+                         "reason": "No cloud API keys configured — using offline farm tools."})
         await broadcast({"type": "typing", "active": True})
         try:
             await _run_offline(text, broadcast)
@@ -893,6 +906,8 @@ async def handle_message(data: dict, broadcast) -> None:
 
     await broadcast({"type": "typing", "active": True})
     try:
+        quota_seen = False
+        other_seen = False
         for pname in providers:
             # Gemini pools several free-tier keys — on a per-key quota hit,
             # rotate to the next key before giving up on the whole provider.
@@ -902,12 +917,21 @@ async def handle_message(data: dict, broadcast) -> None:
                 result = await _run_cloud_provider(pname, text, broadcast, brief)
                 if result is not _QUOTA:
                     break
-            if result is _QUOTA or result is None:
-                continue  # provider exhausted/transient — try the next one
+            if result is _QUOTA:
+                quota_seen = True
+                continue
+            if result is None:
+                other_seen = True
+                continue
             return        # handled
-        # every provider failed → graceful offline fallback
-        await broadcast({"type": "auto_offline",
-                         "reason": "All AI providers are rate-limited right now."})
+        # every provider failed → graceful offline fallback with an honest reason
+        if quota_seen and not other_seen:
+            reason = "All AI providers are rate-limited right now — using offline farm tools."
+        elif other_seen and not quota_seen:
+            reason = "AI providers returned errors (key, network, or upstream) — using offline farm tools."
+        else:
+            reason = "AI providers are either rate-limited or returning errors — using offline farm tools."
+        await broadcast({"type": "auto_offline", "reason": reason})
         await _run_offline(text, broadcast)
     except Exception as exc:  # pragma: no cover - defensive
         await broadcast({"type": "error",

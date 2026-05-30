@@ -34,6 +34,23 @@ Monitor soil moisture, automate irrigation, detect disease,detect harvest ready,
 | **Meshtastic** | LoRa bridge — FLORA answers any channel or DM from your mesh network |
 | **Dashboard** | Dark-theme single-page app: overview, cameras, AI chat, events log, settings |
 
+### 🌿 FLORA Intelligence
+*Farm Live Operation and Reasoning Assistant*
+
+FLORA is the chat tab in the dashboard — but it doesn't only answer, it actually acts on the farm. Every capability below is wired to a real tool that touches sensors, relays, cameras, the event database, or the email queue. When no cloud LLM is reachable, FLORA falls back to deterministic keyword routing so every capability keeps working offline.
+
+| Capability | What FLORA can do |
+|------------|-------------------|
+| **Full farm analysis** | Live moisture, pump state, sensor health, security camera state, and FarmMonitor camera read-out for every active plant — on demand. |
+| **History queries** | *"What happened last week?"*, *"show disease detections in the past 3 days"* — answered from the Storage_Data event database for as long as the events are kept. |
+| **Irrigation control** | Start or stop watering on any plant individually — *"water plant C"*, *"stop pump B"*. |
+| **Guard control** | Arm or disarm the security camera + dual-buzzer siren — *"guard on"*, *"I'm leaving"*, *"I'm back"*. |
+| **FarmMonitor scans** | Trigger plant-health and harvest-readiness scans on demand — *"scan now"*, *"check the strawberries"*. |
+| **Email** | Send detection photos, scan results, or report attachments straight to the configured operator address. |
+| **PDF reports** | Generate a downloadable PDF of farm state and (optionally) email it on the same call. |
+| **Scheduling** | Schedule any of the above for later — *"water plant A in 2 hours"*, *"scan every morning at 6"*. |
+| **Cloud or offline** | Cloud mode uses any one of Groq / Cerebras / Mistral / Gemini for natural-language understanding. Offline mode uses deterministic keyword routing — every capability above still works. |
+
 The repo ships **two entry points** — pick the one that matches your hardware:
 
 | Script | When to use | Security camera engine |
