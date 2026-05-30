@@ -54,7 +54,7 @@
 | 1 | **Raspberry Pi 4 / 5**（4 GB 以上、8 GB 推奨）<br><img src="../assets/hardware/Raspberrypi_5.png" width="240"> | ダッシュボード、AI、灌漑ロジックなどすべてを動かします。 | Pi 5 が一番速いですが、Pi 4 (2 GB) でも試せます。**Raspberry Pi OS Bookworm 64-bit** を入れてください。 |
 | 2 | **ADS1115 16 bit I²C ADC**<br><img src="../assets/hardware/adc_module.png" width="240"> | Pi にはアナログ入力がなく、容量式湿度センサーはアナログなので変換が必要です。 | ADS1115 一つで 4 センサー。必要なだけ追加 — **4 個**（`0x48`-`0x4B`）まで増やせば 16 プラント、I²C バスを増設すればさらに大規模化も可能。 |
 | 3 | **容量式土壌湿度センサー**<br><img src="../assets/hardware/moisture_sensor.png" width="240"> | 土の湿り気を測ります。自動灌漑の入力になります。 | 必ず **容量式（黄色い基板）** を選んでください。安価な抵抗式は数週間で腐食します。プラントごとに 1 個。 |
-| 4 | **8 チャンネル リレーボード**（アクティブ LOW、オプトカプラ絶縁）<br><img src="../assets/hardware/relay_module.png" width="240"> | Pi がポンプを ON/OFF するために使います。Pi 自体ではポンプの電源は供給できません。 | **5V トリガ、オプトカプラ絶縁** と書かれているものを選ぶこと。そうでないと 3.3V GPIO で動作しません。 |
+| 4 | **リレーボード**（アクティブ LOW、オプトカプラ絶縁）<br><img src="../assets/hardware/relay_module.png" width="240"> | Pi がポンプを ON/OFF するために使います。Pi 自体ではポンプの電源は供給できません。 | **5V トリガ、オプトカプラ絶縁** と書かれているものを選ぶこと。そうでないと 3.3V GPIO で動作しません。 |
 | 5 | **小型の 5V または 12V DC 水ポンプ**<br><img src="../assets/hardware/water_pump.png" width="240"> | 実際にプラントへ水を送る部品です。 | プラント 1 つにつき 1 個。**必ず別電源を用意してください。Pi の 5V から取らないでください。** Pi はリレーを制御するだけです。 |
 | 6 | **Raspberry Pi カメラ（CSI）** または **USB Web カメラ**<br><img src="../assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="../assets/hardware/usb_camera.png" width="200"> | 一方は FarmMonitor の病害・熟度スキャン用、もう一方はセキュリティカメラ用です。 | カメラ 1 台でも始められます。`--security-camera` だけ指定して `--farm-camera` を省略してください。RTSP IP カメラにも対応。 |
 | 7 | **ブレッドボード + ジャンパーワイヤー**<br><img src="../assets/hardware/breadboard_and_jumper_wires.png" width="240"> | はんだ付けなしで配線できます。 | センサー〜ADC は メス-メス、ADC〜Pi は オス-メス を用意するとスムーズです。 |
