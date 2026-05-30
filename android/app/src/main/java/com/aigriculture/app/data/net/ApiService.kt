@@ -78,4 +78,11 @@ interface ApiService {
 
     @POST("api/farm_monitor/scan_now")
     suspend fun scanNow(): Response<SimpleOk>
+
+    @GET("api/analytics")
+    suspend fun analytics(): AnalyticsResp
+
+    // Nested tree: { year: { month: { day: [StorageEvent] } } }.
+    @GET("api/storage")
+    suspend fun storage(): Map<String, Map<String, Map<String, List<StorageEvent>>>>
 }

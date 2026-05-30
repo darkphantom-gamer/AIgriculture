@@ -1,0 +1,245 @@
+package com.aigriculture.app.ui.analytics
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aigriculture.app.data.net.IrrEvent
+import com.aigriculture.app.ui.common.AigriCard
+import com.aigriculture.app.ui.common.PrimaryButton
+import com.aigriculture.app.ui.common.SectionLabel
+import com.aigriculture.app.ui.theme.AigriAccent
+import com.aigriculture.app.ui.theme.AigriBg
+import com.aigriculture.app.ui.theme.AigriBlue
+import com.aigriculture.app.ui.theme.AigriBorder
+import com.aigriculture.app.ui.theme.AigriDanger
+import com.aigriculture.app.ui.theme.AigriMuted
+import com.aigriculture.app.ui.theme.AigriOk
+import com.aigriculture.app.ui.theme.AigriSidebar
+import com.aigriculture.app.ui.theme.AigriText
+import com.aigriculture.app.ui.theme.AigriWarn
+
+@Composable
+fun AnalyticsScreen(vm: AnalyticsViewModel = viewModel()) {
+    val ui by vm.ui.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize().background(AigriBg)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().background(AigriSidebar).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Analytics", color = AigriText, fontWeight = FontWeight.W700, fontSize = 16.sp)
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = vm::load) {
+                Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = AigriMuted)
+            }
+        }
+
+        when {
+            ui.loading && ui.data == null -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                CircularProgressIndicator(color = AigriAccent)
+            }
+            ui.error != null && ui.data == null -> Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(ui.error!!, color = AigriMuted)
+                Spacer(Modifier.height(16.dp))
+                PrimaryButton("Retry", vm::load)
+            }
+            else -> {
+                val d = ui.data
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item { SummaryTiles(d?.storage_summary ?: emptyMap()) }
+                    item { SpeciesCard(d?.species_counts ?: emptyMap()) }
+                    item { HourlyCard(d?.hourly_detections ?: emptyMap()) }
+                    item { IrrigationCard(d?.irr_history ?: emptyList()) }
+
+                    item { SectionLabel("Recent events") }
+                    if (ui.events.isEmpty()) {
+                        item {
+                            AigriCard(Modifier.fillMaxWidth()) {
+                                Text("No stored events yet.", color = AigriMuted, fontSize = 13.sp)
+                            }
+                        }
+                    } else {
+                        items(ui.events) { ev -> EventCard(ev) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryTiles(summary: Map<String, Int>) {
+    val security = summary["security"] ?: 0
+    val disease = (summary["disease"] ?: 0) + (summary["disease_and_ripeness"] ?: 0)
+    val harvest = (summary["ripeness"] ?: 0) + (summary["disease_and_ripeness"] ?: 0)
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Tile("Security", security, AigriBlue, Modifier.weight(1f))
+        Tile("Disease", disease, AigriDanger, Modifier.weight(1f))
+        Tile("Harvest", harvest, AigriOk, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun Tile(label: String, value: Int, accent: Color, modifier: Modifier = Modifier) {
+    AigriCard(modifier) {
+        Text("$value", color = accent, fontWeight = FontWeight.W800, fontSize = 26.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(label.uppercase(), color = AigriMuted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.W600)
+    }
+}
+
+@Composable
+private fun SpeciesCard(species: Map<String, Int>) {
+    AigriCard(Modifier.fillMaxWidth()) {
+        SectionLabel("Detections (24h)")
+        Spacer(Modifier.height(10.dp))
+        if (species.isEmpty()) {
+            Text("No detections in the last 24 hours.", color = AigriMuted, fontSize = 13.sp)
+            return@AigriCard
+        }
+        val max = species.values.maxOrNull()?.coerceAtLeast(1) ?: 1
+        species.entries.sortedByDescending { it.value }.forEach { (label, count) ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                Text(label, color = AigriText, fontSize = 12.sp, modifier = Modifier.width(120.dp))
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(10.dp)
+                        .background(AigriBorder, RoundedCornerShape(5.dp)),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(count.toFloat() / max.toFloat())
+                            .background(AigriAccent, RoundedCornerShape(5.dp)),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("$count", color = AigriText, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HourlyCard(hourly: Map<String, Int>) {
+    AigriCard(Modifier.fillMaxWidth()) {
+        SectionLabel("By hour (24h)")
+        Spacer(Modifier.height(12.dp))
+        val counts = (0..23).map { hourly[it.toString()] ?: 0 }
+        val max = counts.maxOrNull()?.coerceAtLeast(1) ?: 1
+        Row(
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            counts.forEach { c ->
+                val frac = (c.toFloat() / max.toFloat()).coerceIn(0.04f, 1f)
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight(frac)
+                        .background(if (c > 0) AigriWarn else AigriBorder, RoundedCornerShape(2.dp)),
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("00", color = AigriMuted, fontSize = 9.sp)
+            Text("12", color = AigriMuted, fontSize = 9.sp)
+            Text("23", color = AigriMuted, fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+private fun IrrigationCard(events: List<IrrEvent>) {
+    AigriCard(Modifier.fillMaxWidth()) {
+        SectionLabel("Recent irrigation")
+        Spacer(Modifier.height(8.dp))
+        if (events.isEmpty()) {
+            Text("No irrigation events recorded.", color = AigriMuted, fontSize = 13.sp)
+            return@AigriCard
+        }
+        events.takeLast(6).reversed().forEach { e ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
+                Box(Modifier.size(6.dp).background(AigriBlue, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Text("Plant ${e.plant.uppercase()}", color = AigriText, fontSize = 13.sp)
+                Spacer(Modifier.weight(1f))
+                Text(relTime(e.t), color = AigriMuted, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventCard(ev: EventRow) {
+    val danger = ev.type.contains("disease", true) || ev.type.equals("person", true) || ev.type == "security"
+    AigriCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).background(if (danger) AigriDanger else AigriOk, CircleShape))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    ev.label.ifBlank { ev.type }.replaceFirstChar { it.uppercase() },
+                    color = AigriText, fontWeight = FontWeight.W600, fontSize = 13.sp,
+                )
+                Text("${ev.date}  ·  ${ev.time}", color = AigriMuted, fontSize = 11.sp)
+            }
+            if (ev.images > 0) {
+                Text("${ev.images} 📷", color = AigriMuted, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+private fun relTime(epochSec: Long): String {
+    if (epochSec <= 0) return ""
+    val diff = System.currentTimeMillis() / 1000 - epochSec
+    return when {
+        diff < 60 -> "just now"
+        diff < 3600 -> "${diff / 60}m ago"
+        diff < 86400 -> "${diff / 3600}h ago"
+        else -> "${diff / 86400}d ago"
+    }
+}

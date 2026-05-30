@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Videocam
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aigriculture.app.ui.analytics.AnalyticsScreen
 import com.aigriculture.app.ui.flora.FloraScreen
 import com.aigriculture.app.ui.monitor.FarmMonitorScreen
 import com.aigriculture.app.ui.security.SecurityScreen
@@ -40,6 +42,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
     STATUS("Status", Icons.Filled.Spa),
     MONITOR("Monitor", Icons.Filled.Agriculture),
     SECURITY("Security", Icons.Filled.Videocam),
+    ANALYTICS("Analytics", Icons.Filled.BarChart),
     SETTINGS("Settings", Icons.Filled.Settings),
 }
 
@@ -57,7 +60,7 @@ fun AppShell(onLoggedOut: () -> Unit) {
                         selected = i == index,
                         onClick = { index = i },
                         icon = { Icon(t.icon, contentDescription = t.label) },
-                        label = { Text(t.label, fontSize = 11.sp) },
+                        label = { Text(t.label, fontSize = 9.sp, maxLines = 1) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = AigriOnAccent,
                             indicatorColor = AigriAccent,
@@ -76,6 +79,7 @@ fun AppShell(onLoggedOut: () -> Unit) {
                 Tab.STATUS -> StatusScreen()
                 Tab.MONITOR -> FarmMonitorScreen()
                 Tab.SECURITY -> SecurityScreen()
+                Tab.ANALYTICS -> AnalyticsScreen()
                 Tab.SETTINGS -> SettingsScreen(onLoggedOut = onLoggedOut)
             }
         }

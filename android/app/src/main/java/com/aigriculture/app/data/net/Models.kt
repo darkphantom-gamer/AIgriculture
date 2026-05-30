@@ -160,3 +160,35 @@ data class AlertsResp(
     val alerts: List<String> = emptyList(),
     val at_farm: Boolean = false,
 )
+
+@Serializable
+data class IrrEvent(val t: Long = 0, val plant: String = "")
+
+// /api/analytics — moisture_history is intentionally omitted (heavy, ~288 pts/plant).
+@Serializable
+data class AnalyticsResp(
+    val moisture_current: Map<String, Double?> = emptyMap(),
+    val hourly_detections: Map<String, Int> = emptyMap(),
+    val species_counts: Map<String, Int> = emptyMap(),
+    val storage_summary: Map<String, Int> = emptyMap(),
+    val irr_history: List<IrrEvent> = emptyList(),
+    val latest_farm_event: StorageMeta? = null,
+)
+
+// One stored event's meta.json (security snapshot or farm scan).
+@Serializable
+data class StorageMeta(
+    val event_type: String? = null,
+    val label: String? = null,
+    val message: String? = null,
+    val confidence: Double? = null,
+    val timestamp: String? = null,
+)
+
+// /api/storage returns { year: { month: { day: [StorageEvent] } } }.
+@Serializable
+data class StorageEvent(
+    val time: String = "",
+    val meta: StorageMeta = StorageMeta(),
+    val images: List<String> = emptyList(),
+)

@@ -104,6 +104,11 @@ object AigriRepository {
 
     suspend fun alerts(): ApiResult<AlertsResp> = call { Net.api.alerts() }
 
+    suspend fun analytics(): ApiResult<AnalyticsResp> = call { Net.api.analytics() }
+
+    suspend fun storage(): ApiResult<Map<String, Map<String, Map<String, List<StorageEvent>>>>> =
+        call { Net.api.storage() }
+
     suspend fun farmStatus(): ApiResult<FarmStatus> = call { Net.api.farmStatus() }
 
     suspend fun scanNow(): ApiResult<String> = try {
