@@ -54,7 +54,7 @@
 | 1 | **Raspberry Pi 4 / 5**（4 GB+，推荐 8 GB）<br><img src="../assets/hardware/Raspberrypi_5.png" width="240"> | 运行整个系统 — 仪表盘、AI、灌溉逻辑。 | Pi 5 最快，但 Pi 4 (2 GB) 也可以试。烧录 **Raspberry Pi OS Bookworm 64-bit**。 |
 | 2 | **ADS1115 16-bit I²C ADC**<br><img src="../assets/hardware/adc_module.png" width="240"> | Pi 没有模拟输入；电容式湿度传感器是模拟信号，ADC 把它转成数字。 | 一片 ADS1115 = 4 个传感器。按需添加 — **四片**（`0x48`-`0x4B`）可支持 16 盆，再加 I²C 总线还能更多。 |
 | 3 | **电容式土壤湿度传感器**<br><img src="../assets/hardware/moisture_sensor.png" width="240"> | 读取土壤湿度 — 自动灌溉的输入。 | 一定选 **电容式**（黄色 PCB），便宜的电阻式几周就会腐蚀。每盆植物一个。 |
-| 4 | **8 路继电器板**（active-LOW、光耦隔离）<br><img src="../assets/hardware/relay_module.png" width="240"> | 让 Pi 切换水泵开关。Pi 自身无法供给水泵电流。 | 必须标注 **5V trigger、opto-isolated**，否则 3.3V GPIO 触发不了。 |
+| 4 | **继电器板**（active-LOW、光耦隔离）<br><img src="../assets/hardware/relay_module.png" width="240"> | 让 Pi 切换水泵开关。Pi 自身无法供给水泵电流。 | 必须标注 **5V trigger、opto-isolated**，否则 3.3V GPIO 触发不了。 |
 | 5 | **小型 5V 或 12V DC 水泵**<br><img src="../assets/hardware/water_pump.png" width="240"> | 真正给植物浇水的部件。 | 每盆一个。**务必单独供电，绝不能用 Pi 的 5V 引脚。** Pi 只控制继电器。 |
 | 6 | **Raspberry Pi 摄像头（CSI）** *或* **USB 摄像头**<br><img src="../assets/hardware/pi-camera.jpeg" width="200"> &nbsp; <img src="../assets/hardware/usb_camera.png" width="200"> | 一个用于 FarmMonitor 病害/成熟扫描，一个用于安防摄像头。 | 起步一个摄像头也够 — 传 `--security-camera` 跳过 `--farm-camera`。也支持 RTSP IP 摄像头。 |
 | 7 | **面包板 + 杜邦线**<br><img src="../assets/hardware/breadboard_and_jumper_wires.png" width="240"> | 无需焊接连接全部部件。 | 传感器 → ADC 用母对母，ADC → Pi 用公对母。 |
