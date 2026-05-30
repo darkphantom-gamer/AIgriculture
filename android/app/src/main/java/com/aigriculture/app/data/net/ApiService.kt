@@ -54,4 +54,28 @@ interface ApiService {
     // HTTP fallback for FLORA chat when a reverse proxy blocks WebSocket upgrades.
     @POST("api/flora/chat")
     suspend fun floraChat(@Body body: FloraChatReq): Response<FloraChatResp>
+
+    @POST("set_presence")
+    suspend fun setPresence(@Body body: PresenceReq): Response<PresenceResp>
+
+    @POST("api/buzzer")
+    suspend fun buzzerMute(@Body body: BuzzerReq): Response<SimpleOk>
+
+    @POST("api/buzzer/test")
+    suspend fun buzzerTest(): Response<SimpleOk>
+
+    @POST("api/camera/{camera}/{action}")
+    suspend fun camera(
+        @Path("camera") camera: String,
+        @Path("action") action: String,
+    ): Response<CameraResp>
+
+    @GET("alerts")
+    suspend fun alerts(): AlertsResp
+
+    @GET("api/farm_monitor/status")
+    suspend fun farmStatus(): FarmStatus
+
+    @POST("api/farm_monitor/scan_now")
+    suspend fun scanNow(): Response<SimpleOk>
 }

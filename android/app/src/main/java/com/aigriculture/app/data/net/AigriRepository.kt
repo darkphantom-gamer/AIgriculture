@@ -83,6 +83,38 @@ object AigriRepository {
         ApiResult.Err(friendly(e))
     }
 
+    // Guard ON ("armed") means you're away → server's at_farm = false.
+    suspend fun setGuard(armed: Boolean): ApiResult<Boolean> = try {
+        val resp = Net.api.setPresence(PresenceReq(at_farm = !armed))
+        val b = resp.body()
+        if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(!b.at_farm)
+        else ApiResult.Err("Couldn't change guard (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun testSiren(): ApiResult<String> = try {
+        val resp = Net.api.buzzerTest()
+        val b = resp.body()
+        if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.message ?: "Test beep sent.")
+        else ApiResult.Err(b?.error ?: "Buzzers not connected.", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun alerts(): ApiResult<AlertsResp> = call { Net.api.alerts() }
+
+    suspend fun farmStatus(): ApiResult<FarmStatus> = call { Net.api.farmStatus() }
+
+    suspend fun scanNow(): ApiResult<String> = try {
+        val resp = Net.api.scanNow()
+        val b = resp.body()
+        if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.message ?: "Scan queued.")
+        else ApiResult.Err(b?.error ?: "Couldn't start scan (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
     suspend fun logout() {
         runCatching { Net.api.logout() }
         Net.clearSession()

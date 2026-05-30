@@ -94,3 +94,69 @@ data class FloraChatResp(
     val response: String = "",
     val error: String? = null,
 )
+
+@Serializable
+data class PresenceReq(val at_farm: Boolean)
+
+@Serializable
+data class PresenceResp(val ok: Boolean = false, val at_farm: Boolean = false)
+
+@Serializable
+data class BuzzerReq(val enabled: Boolean)
+
+@Serializable
+data class SimpleOk(
+    val ok: Boolean = false,
+    val message: String? = null,
+    val error: String? = null,
+    val available: Boolean? = null,
+)
+
+@Serializable
+data class CameraResp(
+    val ok: Boolean = false,
+    val camera: String? = null,
+    val on: Boolean? = null,
+    val security_cam_on: Boolean? = null,
+    val farm_cam_on: Boolean? = null,
+)
+
+// Summary of a completed FarmMonitor scan (farm_scan_status["last_result"]).
+@Serializable
+data class FarmResult(
+    val event_type: String? = null,
+    val label: String? = null,
+    val message: String? = null,
+    val usable_frames: Int? = null,
+    val disease_frames: Int? = null,
+    val ripeness_frames: Int? = null,
+    val completed_at: String? = null,
+    val manual: Boolean? = null,
+)
+
+// /api/farm_monitor/status — _farm_status_snapshot(). next_scan_at/last_scan_at
+// can be null or a timestamp string, so they stay loose.
+@Serializable
+data class FarmStatus(
+    val state: String? = null,
+    val stage: String? = null,
+    val message: String? = null,
+    val next_scan_at: JsonElement? = null,
+    val last_scan_at: JsonElement? = null,
+    val last_result: FarmResult? = null,
+    val camera_ok: Boolean? = null,
+    val camera_error: String? = null,
+    val total_cycles: Int? = null,
+    val current_cycle: Int? = null,
+    val target_frames: Int? = null,
+    val captured_frames: Int? = null,
+    val usable_frames: Int? = null,
+    val disease_frames: Int? = null,
+    val ripeness_frames: Int? = null,
+)
+
+@Serializable
+data class AlertsResp(
+    val alerts: List<String> = emptyList(),
+    val at_farm: Boolean = false,
+)
