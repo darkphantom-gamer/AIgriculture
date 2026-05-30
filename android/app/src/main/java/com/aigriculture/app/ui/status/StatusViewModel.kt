@@ -12,6 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class SensorPickerUi(
+    val scanning: Boolean = true,
+    val available: Int = 0,
+    val message: String? = null,
+    val adding: Boolean = false,
+)
+
 data class StatusUi(
     val state: StateMsg? = null,
     val connected: Boolean = false,
@@ -19,6 +26,7 @@ data class StatusUi(
     val error: String? = null,
     val toast: String? = null,
     val busyPlants: Set<String> = emptySet(),
+    val sensorPicker: SensorPickerUi? = null,
 )
 
 class StatusViewModel : ViewModel() {
@@ -60,6 +68,47 @@ class StatusViewModel : ViewModel() {
     }
 
     fun clearToast() = _ui.update { it.copy(toast = null) }
+
+    fun openSensorPicker() {
+        _ui.update { it.copy(sensorPicker = SensorPickerUi(scanning = true)) }
+        viewModelScope.launch {
+            when (val r = AigriRepository.scanSensors()) {
+                is ApiResult.Ok -> {
+                    val n = r.value.unassigned.size
+                    _ui.update {
+                        it.copy(
+                            sensorPicker = SensorPickerUi(
+                                scanning = false,
+                                available = n,
+                                message = if (n == 0)
+                                    "No new sensors found. Wire a moisture sensor into a free ADS1115 channel and scan again."
+                                else "Found $n available channel(s) ready to add.",
+                            )
+                        )
+                    }
+                }
+                is ApiResult.Err -> _ui.update {
+                    it.copy(sensorPicker = SensorPickerUi(scanning = false, available = 0, message = r.message))
+                }
+            }
+        }
+    }
+
+    fun addSensors() {
+        val n = _ui.value.sensorPicker?.available ?: return
+        if (n <= 0) return
+        _ui.update { it.copy(sensorPicker = it.sensorPicker?.copy(adding = true)) }
+        viewModelScope.launch {
+            val msg = when (val r = AigriRepository.addSensors(n)) {
+                is ApiResult.Ok -> "Added ${r.value.added.size} sensor(s)."
+                is ApiResult.Err -> r.message
+            }
+            // The /ws push will surface the new plants automatically.
+            _ui.update { it.copy(sensorPicker = null, toast = msg) }
+        }
+    }
+
+    fun closeSensorPicker() = _ui.update { it.copy(sensorPicker = null) }
 
     fun retry() {
         _ui.update { it.copy(loading = true, error = null) }

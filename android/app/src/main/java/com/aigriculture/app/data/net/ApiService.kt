@@ -85,4 +85,16 @@ interface ApiService {
     // Nested tree: { year: { month: { day: [StorageEvent] } } }.
     @GET("api/storage")
     suspend fun storage(): Map<String, Map<String, Map<String, List<StorageEvent>>>>
+
+    @GET("api/sensors/scan")
+    suspend fun sensorsScan(): Response<SensorScanResp>
+
+    @POST("api/sensors/add")
+    suspend fun sensorsAdd(@Body body: SensorAddReq): Response<SensorAddResp>
+
+    @GET("api/notification_email")
+    suspend fun notifEmailGet(): NotifEmailResp
+
+    @POST("api/notification_email")
+    suspend fun notifEmailSet(@Body body: NotifEmailReq): Response<NotifEmailResp>
 }

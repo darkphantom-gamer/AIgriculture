@@ -1,6 +1,8 @@
 package com.aigriculture.app.ui.status
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,12 +27,14 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +48,7 @@ import com.aigriculture.app.ui.theme.AigriAccent
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriBlue
 import com.aigriculture.app.ui.theme.AigriBorder
+import com.aigriculture.app.ui.theme.AigriCard as CardBg
 import com.aigriculture.app.ui.theme.AigriDanger
 import com.aigriculture.app.ui.theme.AigriMuted
 import com.aigriculture.app.ui.theme.AigriOk
@@ -50,6 +56,7 @@ import com.aigriculture.app.ui.theme.AigriOnAccent
 import com.aigriculture.app.ui.theme.AigriSidebar
 import com.aigriculture.app.ui.theme.AigriText
 import com.aigriculture.app.ui.theme.AigriWarn
+import com.aigriculture.app.ui.theme.Dimens
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -96,6 +103,19 @@ fun StatusScreen(vm: StatusViewModel = viewModel()) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { AutoCard(state, vm::toggleAuto) }
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Dimens.radiusSm))
+                            .border(1.dp, AigriBorder, RoundedCornerShape(Dimens.radiusSm))
+                            .clickable { vm.openSensorPicker() }
+                            .padding(14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("+ Add sensors", color = AigriAccent, fontWeight = FontWeight.W700, fontSize = 14.sp)
+                    }
+                }
                 val plants = state.active_plants
                 if (plants.isEmpty()) {
                     item {
@@ -111,6 +131,49 @@ fun StatusScreen(vm: StatusViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    val picker = ui.sensorPicker
+    if (picker != null) {
+        AlertDialog(
+            onDismissRequest = vm::closeSensorPicker,
+            confirmButton = {
+                if (picker.available > 0) {
+                    Button(
+                        onClick = vm::addSensors,
+                        enabled = !picker.adding,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AigriAccent,
+                            contentColor = AigriOnAccent,
+                        ),
+                    ) {
+                        if (picker.adding) {
+                            CircularProgressIndicator(Modifier.size(16.dp), color = AigriOnAccent, strokeWidth = 2.dp)
+                        } else {
+                            Text("Add ${picker.available}", fontWeight = FontWeight.W700)
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::closeSensorPicker) {
+                    Text(if (picker.available > 0) "Cancel" else "Close", color = AigriMuted)
+                }
+            },
+            title = { Text("Add sensors", color = AigriText, fontWeight = FontWeight.W700) },
+            text = {
+                if (picker.scanning) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), color = AigriAccent, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Scanning the I²C bus…", color = AigriMuted, fontSize = 13.sp)
+                    }
+                } else {
+                    Text(picker.message ?: "", color = AigriMuted, fontSize = 13.sp)
+                }
+            },
+            containerColor = CardBg,
+        )
     }
 }
 

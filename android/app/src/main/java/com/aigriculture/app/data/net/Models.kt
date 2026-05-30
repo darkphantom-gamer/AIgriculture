@@ -110,6 +110,7 @@ data class SimpleOk(
     val message: String? = null,
     val error: String? = null,
     val available: Boolean? = null,
+    val enabled: Boolean? = null,
 )
 
 @Serializable
@@ -192,3 +193,57 @@ data class StorageEvent(
     val meta: StorageMeta = StorageMeta(),
     val images: List<String> = emptyList(),
 )
+
+// ── "+ Add sensors" (runtime sensor discovery) ─────────────────────────────────
+@Serializable
+data class SensorChannel(
+    val addr: Int = 0,
+    val channel: Int = 0,
+    val raw: Int? = null,
+    val plausible: Boolean = false,
+    val assigned_to: String? = null,
+    val error: String? = null,
+)
+
+@Serializable
+data class SensorScanResp(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val channels: List<SensorChannel> = emptyList(),
+    val unassigned: List<SensorChannel> = emptyList(),
+    val i2c_available: Boolean = false,
+)
+
+@Serializable
+data class AddedSensor(
+    val plant: String = "",
+    val addr: Int = 0,
+    val channel: Int = 0,
+    val relay_pin: Int? = null,
+)
+
+@Serializable
+data class SensorAddResp(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val found: Int? = null,
+    val added: List<AddedSensor> = emptyList(),
+    val active: List<String> = emptyList(),
+    val all: List<String> = emptyList(),
+)
+
+@Serializable
+data class SensorAddReq(val count: Int)
+
+// ── Notification email (Settings) ──────────────────────────────────────────────
+@Serializable
+data class NotifEmailResp(
+    val configured: Boolean = false,
+    val email: String = "",
+    val smtp_ready: Boolean = false,
+    val ok: Boolean = false,
+    val error: String? = null,
+)
+
+@Serializable
+data class NotifEmailReq(val email: String)

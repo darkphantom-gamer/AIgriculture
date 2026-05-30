@@ -109,6 +109,56 @@ object AigriRepository {
     suspend fun storage(): ApiResult<Map<String, Map<String, Map<String, List<StorageEvent>>>>> =
         call { Net.api.storage() }
 
+    suspend fun scanSensors(): ApiResult<SensorScanResp> = try {
+        val resp = Net.api.sensorsScan()
+        val b = resp.body()
+        when {
+            resp.isSuccessful && b != null && b.ok -> ApiResult.Ok(b)
+            b?.error != null -> ApiResult.Err(mapSensorErr(b.error), resp.code())
+            else -> ApiResult.Err("Sensor scan failed (${resp.code()}).", resp.code())
+        }
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun addSensors(count: Int): ApiResult<SensorAddResp> = try {
+        val resp = Net.api.sensorsAdd(SensorAddReq(count))
+        val b = resp.body()
+        when {
+            resp.isSuccessful && b?.ok == true -> ApiResult.Ok(b)
+            b?.error != null -> ApiResult.Err(mapSensorErr(b.error), resp.code())
+            else -> ApiResult.Err("Couldn't add sensors (${resp.code()}).", resp.code())
+        }
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun getNotifEmail(): ApiResult<NotifEmailResp> = call { Net.api.notifEmailGet() }
+
+    suspend fun setNotifEmail(email: String): ApiResult<NotifEmailResp> = try {
+        val resp = Net.api.notifEmailSet(NotifEmailReq(email))
+        val b = resp.body()
+        if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b)
+        else ApiResult.Err(b?.error ?: "Couldn't save email (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun setSiren(enabled: Boolean): ApiResult<Boolean> = try {
+        val resp = Net.api.buzzerMute(BuzzerReq(enabled))
+        val b = resp.body()
+        if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.enabled ?: enabled)
+        else ApiResult.Err(b?.error ?: "Couldn't change siren (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    private fun mapSensorErr(err: String): String = when {
+        err.contains("i2c_unavailable", true) ->
+            "No I²C bus detected — runtime sensor add needs a Pi with an ADS1115 wired up."
+        else -> err
+    }
+
     suspend fun farmStatus(): ApiResult<FarmStatus> = call { Net.api.farmStatus() }
 
     suspend fun scanNow(): ApiResult<String> = try {
