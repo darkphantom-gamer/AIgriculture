@@ -780,6 +780,7 @@ ADMIN_ROLE = "admin"
 
 farm_scan_lock = threading.Lock()
 farm_scan_request = threading.Event()
+farm_scan_stop_request = threading.Event()  # set by /api/farm_monitor/scan_stop
 farm_scan_status_lock = threading.Lock()
 farm_scan_status = {
     "state": "idle",
@@ -1036,10 +1037,40 @@ _ws_lock = threading.Lock()
 _ads_errors = {p: None for p in PLANTS}
 _ads_last_warn = {p: 0.0 for p in PLANTS}
 
+# Which ADC chips are actually on the bus right now. Brand-agnostic: any
+# ADS1115-compatible board answers a config-register read. Re-probed periodically
+# so the system auto-detects however many modules are wired — one, two, or none —
+# and never logs phantom faults for an address that simply has no chip.
+_present_ads: set = set()
+_ads_probe_last = 0.0
+_ADS_PROBE_S = 30.0
+
+def _probe_present_ads():
+    """Detect how many ADC modules are physically connected (address probe)."""
+    global _present_ads, _ads_probe_last
+    _ads_probe_last = time.time()
+    if not I2C_AVAILABLE:
+        _present_ads = set()
+        return
+    addrs = {addr for (addr, _ch) in SENSOR_CHANNELS.values()}
+    found = set()
+    for addr in addrs:
+        try:
+            _bus.read_i2c_block_data(addr, REG_CFG, 2)
+            found.add(addr)
+        except Exception:
+            pass
+    _present_ads = found
+
 def _read_ads_channel(plant: str, addr: int, ch: int):
-    """Return moisture % for one ADS1115 channel, or None on error."""
+    """Return moisture % for one ADC channel, or None when no sensor is there."""
     if not I2C_AVAILABLE:
         _ads_errors[plant] = "i2c_unavailable"
+        return None
+    if addr not in _present_ads:
+        # No ADC module at this address — simply no sensor attached here. Stay
+        # quiet (no error spam) so a one-module farm never logs phantom faults.
+        _ads_errors[plant] = "no_sensor"
         return None
     try:
         cfg = MUX_CONFIGS[ch]
@@ -1053,12 +1084,14 @@ def _read_ads_channel(plant: str, addr: int, ch: int):
         pct = (DRY_VALUE - raw) / (DRY_VALUE - WET_VALUE) * 100.0
         _ads_errors[plant] = None
         return round(max(0.0, min(100.0, pct)), 1)
-    except Exception as e:
-        _ads_errors[plant] = str(e)
+    except Exception:
+        # A present chip can still glitch; record it but keep the log clean and
+        # chip-agnostic (no ADS1115 / errno noise the user shouldn't have to read).
+        _ads_errors[plant] = "read_error"
         now = time.time()
         if now - _ads_last_warn[plant] >= ADS_WARN_S:
             _ads_last_warn[plant] = now
-            print(f"[WARN] ADS1115 plant {plant.upper()} addr 0x{addr:02x} ch{ch}: {e}")
+            print(f"[WARN] moisture sensor {plant.upper()} not responding")
         return None
 
 def _update_sensor_status(plant: str, value, error: str | None):
@@ -1152,6 +1185,12 @@ def sensor_irr_loop():
     while True:
       try:
         now = time.time()
+
+        # 0. Auto-detect how many ADC modules are actually wired (one, two, none).
+        #    This makes the farm work with any number of modules and stops the
+        #    log spam for addresses that have no chip.
+        if now - _ads_probe_last >= _ADS_PROBE_S:
+            _probe_present_ads()
 
         # 1. Read real sensors only. Failed channels become offline/null.
         # Snapshot because /api/sensors/add can extend SENSOR_CHANNELS live.
@@ -2289,9 +2328,19 @@ def run_farm_monitor_scan(manual: bool = False):
         )
         cycles = []
         for cycle_idx in range(1, FARM_MONITOR_SCAN_CYCLES + 1):
+            if farm_scan_stop_request.is_set():
+                farm_scan_stop_request.clear()
+                _farm_status_update(state="idle", stage="idle", analyzing_model="",
+                                    message="Scan stopped")
+                return
             cycle_dir = scan_dir / f"cycle_{cycle_idx}"
             cycle_dir.mkdir(parents=True, exist_ok=True)
             usable, skipped, fallback_used = _capture_farm_batch(cycle_dir, cycle_idx)
+            if farm_scan_stop_request.is_set():
+                farm_scan_stop_request.clear()
+                _farm_status_update(state="idle", stage="idle", analyzing_model="",
+                                    message="Scan stopped")
+                return
             video_path = cycle_dir / "batch.avi"
             cycle = {
                 "cycle": cycle_idx,
@@ -3652,6 +3701,20 @@ def farm_monitor_scan_now(_user: str = Depends(require_admin)):
     _farm_status_update(state="queued", message="Manual scan queued")
     return JSONResponse({"ok": True, "message": "Farm Monitor scan queued", "status": _farm_status_snapshot()})
 
+@app.post("/api/farm_monitor/scan_stop")
+def farm_monitor_scan_stop(_user: str = Depends(require_admin)):
+    snap = _farm_status_snapshot()
+    state = snap.get("state")
+    if state == "queued":
+        farm_scan_request.clear()
+        _farm_status_update(state="idle", stage="idle", analyzing_model="", message="Scan cancelled")
+        return JSONResponse({"ok": True, "message": "Scan cancelled", "status": _farm_status_snapshot()})
+    if state == "scanning":
+        farm_scan_stop_request.set()
+        _farm_status_update(message="Stopping scan…")
+        return JSONResponse({"ok": True, "message": "Stopping scan…", "status": _farm_status_snapshot()})
+    return JSONResponse({"ok": True, "message": "No scan is running", "status": snap})
+
 # ── Storage API ────────────────────────────────────────────────────────────────
 @app.get("/api/storage")
 def storage_api(_user: str = Depends(require_auth)):
@@ -4307,6 +4370,12 @@ DASHBOARD_INTEGRATION_PATCH = r"""
       btn.id='farm-scan-now';btn.className='farm-scan-btn';btn.type='button';btn.textContent='Scan Now';
       btn.onclick=window.scanFarmNow;strip.appendChild(btn);
     }
+    if(strip&&!panel.querySelector('#farm-scan-stop')){
+      const sbtn=document.createElement('button');
+      sbtn.id='farm-scan-stop';sbtn.className='farm-scan-btn';sbtn.type='button';sbtn.textContent='Stop';
+      sbtn.style.display='none';sbtn.style.marginLeft='8px';sbtn.style.background='#ef4444';sbtn.style.borderColor='#ef4444';
+      sbtn.onclick=window.scanFarmStop;strip.appendChild(sbtn);
+    }
     const chips=panel.querySelector('#farm-det-chips');
     if(chips&&!panel.querySelector('#farm-event-list')){
       chips.innerHTML='<div class="det-empty"><span>No plant health or harvest alert in the latest scan.</span></div>';
@@ -4365,6 +4434,7 @@ DASHBOARD_INTEGRATION_PATCH = r"""
   function fmtTime(iso){if(!iso)return'—';try{return new Date(iso).toLocaleString();}catch(_){return'—';}}
   function farmPct(n,d){n=Number(n)||0;d=Number(d)||0;return d?Math.max(0,Math.min(100,Math.round((n/d)*100))):0;}
   function farmSetText(sel,text){const el=farmPanel()?.querySelector(sel);if(el)el.textContent=text;}
+  function farmStageLabel(st){const m={starting:'Starting',capture:'Capturing frames',disease_model:'Analyzing plant health',ripeness_model:'Harvest signals',cycle_summary:'Cycle summary',decision:'Deciding',complete:'Complete',idle:'Idle',error:'Error'};return m[st]||(st?String(st).replaceAll('_',' '):'Waiting');}
   function farmSetProgress(s){
     const panel=farmPanel(); if(!panel)return;
     const total=Number(s&&s.target_frames)||25, captured=Number(s&&s.captured_frames)||0, usable=Number(s&&s.usable_frames)||0, skipped=Number(s&&s.skipped_frames)||0;
@@ -4380,7 +4450,7 @@ DASHBOARD_INTEGRATION_PATCH = r"""
       else progress=base+8;
     }else if(s&&s.stage==='complete')progress=100;
     const bar=panel.querySelector('#farm-scan-progress-bar'); if(bar)bar.style.width=`${Math.round(progress)}%`;
-    farmSetText('#farm-scan-stage', s&&s.stage?String(s.stage).replaceAll('_',' ').toUpperCase():'WAITING');
+    farmSetText('#farm-scan-stage', farmStageLabel(s&&s.stage));
     farmSetText('#farm-scan-count', `${Math.min(captured,total)}/${total} frames`);
     farmSetText('#farm-step-capture', s&&s.state==='scanning'?`${usable} usable, ${skipped} skipped in cycle ${s.current_cycle||1}/${s.total_cycles||2}`:(s&&s.stage==='complete'?`${s.usable_frames||0} usable frames analyzed`:'Waiting for Scan Now.'));
     farmSetText('#farm-step-disease', s&&s.analyzing_model==='Plant Health model'?'Analyzing plant-health warnings now.':`${s&&s.disease_frames||0} warning frame(s) found.`);
@@ -4409,7 +4479,10 @@ DASHBOARD_INTEGRATION_PATCH = r"""
     if(next)next.textContent=fmtTime(s&&s.next_scan_at);
     if(dis)dis.textContent=result?(result.event_type==='disease'||result.event_type==='disease_and_ripeness'?'Warning':'No alert'):'No alert';
     if(ripe)ripe.textContent=result?(result.event_type==='ripeness'||result.event_type==='disease_and_ripeness'?'Ready':'Waiting'):'Waiting';
-    if(btn)btn.disabled=!!(s&&s.state==='scanning');
+    const stopBtn=panel.querySelector('#farm-scan-stop');
+    const scanningNow=!!(s&&(s.state==='scanning'||s.state==='queued'));
+    if(btn){btn.disabled=scanningNow;btn.style.display=scanningNow?'none':'';}
+    if(stopBtn)stopBtn.style.display=scanningNow?'':'none';
     if(label)label.textContent='Farm Monitor';
     if(sub)sub.textContent=s&&s.state==='scanning'?'Scanning captured frames':((s&&s.message)||'Plant health and harvest monitoring are ready');
     farmSetProgress(s||{});
@@ -4429,6 +4502,17 @@ DASHBOARD_INTEGRATION_PATCH = r"""
       if(d.status)applyFarmStatusClean(d.status);
     }catch(_){if(window.showToast)showToast('Farm Monitor scan request failed');}
     finally{if(btn){btn.textContent='Scan Now';setTimeout(()=>window.loadFarmMonitorStatus(),1500);}}
+  };
+  window.scanFarmStop=async function(){
+    const sb=farmPanel()?.querySelector('#farm-scan-stop');
+    if(sb){sb.disabled=true;sb.textContent='Stopping...';}
+    try{
+      const r=await fetch('/api/farm_monitor/scan_stop',{method:'POST'});
+      const d=await r.json();
+      if(window.showToast)showToast(d.message||'Stopping scan');
+      if(d.status)applyFarmStatusClean(d.status);
+    }catch(_){if(window.showToast)showToast('Stop request failed');}
+    finally{if(sb){sb.disabled=false;sb.textContent='Stop';setTimeout(()=>window.loadFarmMonitorStatus(),1200);}}
   };
   const oldHandle=window.handleState;
   if(typeof oldHandle==='function'&&!oldHandle.__cleanFarmPatch){
