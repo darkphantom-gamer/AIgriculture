@@ -34,23 +34,6 @@
 | **Meshtastic** | LoRa 桥接 — FLORA 会回应你 mesh 网络上的任意频道或私聊 |
 | **仪表盘** | 暗色单页应用：概览、摄像头、AI 聊天、事件日志、设置 |
 
-### 🌿 FLORA Intelligence
-*Farm Live Operation and Reasoning Assistant（农场实时操作与推理助手）*
-
-FLORA 是仪表盘里的聊天 Tab — 但它不只回答，它真的会对农场执行操作。下表列出的每项能力都绑定到一个真实工具，会触及传感器、继电器、摄像头、事件数据库或邮件队列。当云端 LLM 不可用时，FLORA 会回退到确定性关键字路由 — 每项能力依然能离线工作。
-
-| 能力 | FLORA 能做什么 |
-|------|----------------|
-| **完整农场分析** | 每个活跃植物的实时湿度、水泵状态、传感器健康度、安防摄像头状态以及 FarmMonitor 摄像头读数 — 按需返回。 |
-| **历史查询** | *"上周发生了什么？"*、*"显示过去 3 天的病害检测"* — 由 Storage_Data 事件数据库回答，事件保存多久就能回溯多久。 |
-| **灌溉控制** | 单独打开 / 停止任一植物的浇水 — *"给 plant C 浇水"*、*"停掉 pump B"*。 |
-| **看守控制** | 启用 / 关闭安防摄像头 + 双蜂鸣报警 — *"guard on"*、*"我出门了"*、*"我回来了"*。 |
-| **FarmMonitor 扫描** | 按需触发植物健康和成熟度扫描 — *"立刻扫描"*、*"看看草莓"*。 |
-| **邮件** | 把检测照片、扫描结果或报告附件直接发到已配置的运营人邮箱。 |
-| **PDF 报告** | 生成可下载的农场状态 PDF，并（可选）在同一次调用里把它邮件发出。 |
-| **任务计划** | 把以上任意操作排到未来 — *"2 小时后给 plant A 浇水"*、*"每天早上 6 点扫描"*。 |
-| **云或离线** | 云模式可用 Groq / Cerebras / Mistral / Gemini 之一进行自然语言理解。离线模式使用确定性关键字路由 — 上面的每项能力依旧可用。 |
-
 仓库提供 **两个入口** — 按硬件挑一个：
 
 | 脚本 | 适用场景 | 安防摄像头推理引擎 |
@@ -167,35 +150,14 @@ python main.py
 
 ---
 
-## 📡 Meshtastic LoRa 桥（进程内）
+## 💧 灌溉
 
-在 `.env` 中设置 `MESH_ENABLED=true`，`main.py` 和 `main-hailo.py` 都会在**同一个进程内**启动 Meshtastic ↔ FLORA 桥，不需要额外启动服务。该桥：
+脉冲式灌溉，每盆植物一个水泵 — 两种运行方式：
 
-- 通过 TCP 连接本地 `meshtasticd`（默认 `localhost:4403`）
-- 监听任意频道或私聊
-- 通过进程内 HTTP API 转发消息给 FLORA
-- 在收到请求的同一频道回复
+- **手动** — 在仪表盘 **Overview** 标签页点击某盆植物的卡片，即可按需启动它的水泵。
+- **自动模式** — 程序持续监测每个湿度传感器并自动浇水：土壤降到 **45 %** 时启动一轮脉冲，**65 %** 时停止，一旦读数超过 **70 %** 就把水泵 **硬锁**，这样卡住的传感器也不会淹了植物。
 
-<p align="center">
-  <img src="../img/meshtastic-flora-proof.jpg" alt="Meshtastic ↔ FLORA 真实 LoRa 聊天" width="520">
-</p>
-
-Meshtastic 库未安装或连接断开时，桥只打印警告日志，`main.py` 继续运行 — 仪表盘永不阻塞。
-
-`MESH_*` 全部可调参数（允许节点、回复模式、频道过滤）见 `.env.example`。
-
----
-
-## ➕ 运行时增加传感器
-
-仪表盘右上角有 **"+ Add sensors"** 按钮（仅管理员可见）。点击后程序会：
-
-1. 扫描所有 4 个 ADS1115 地址（`0x48`-`0x4B`）× 各 4 通道
-2. 找到读数合理且尚未占用的通道
-3. 把它们注册为新植物（字母 `i`-`p`，最多 16 个）并持久化到 `.plants.json`
-4. 立即开始轮询 — 无需重启或改代码
-
-适合从 2 个传感器的试装方案开始、后续扩容的场景。
+每盆植物对应一路继电器通道和一个湿度传感器（见上面的 **接线** 一节）。水泵通过光耦隔离的继电器板开关 — Pi 只驱动继电器，绝不流过水泵电流。可以从一盆植物起步，用下面的 **"+ Add sensors"** 在运行时扩展农场；FLORA 也能按名字给任意植物浇水、停止和排程。
 
 ---
 
@@ -207,26 +169,11 @@ Meshtastic 库未安装或连接断开时，桥只打印警告日志，`main.py`
 
 ---
 
-## FLORA AI 助手
+## 安防摄像头
 
-![FLORA 预览](../assets/FLORA_preview.jpeg)
+![安防摄像头结果](../assets/Security_camera_result.png)
 
-FLORA 能理解自然语言命令：
-
-- *"给植物 A 浇水"* → 触发脉冲灌溉
-- *"所有植物现在的湿度是多少？"* → 读取全部传感器
-- *"停止 C 号水泵"* → 关掉水泵 C
-- *"现在检测到病害了吗？"* → 查看最新 FarmMonitor 扫描
-
-未配置 API key 时，FLORA 仍可通过关键词路由完全离线工作。
-
-### 架构
-
-| 层 | 角色 |
-|----|------|
-| ![Layer 1](../assets/FLORA_first_layer_Architecture.png) | 服务商路由 + 回退 |
-| ![Layer 2](../assets/FLORA_Second_layer_Architecture.png) | 工具分发（传感器、水泵、摄像头、调度器） |
-| ![Layer 3](../assets/FLORA_Third_Lasyer_Architecture.png) | FLORA 推理与集成 |
+跳帧推理（每 N 帧）+ 类别白名单保持 CPU 占用低。检测到威胁时警报器响 8 秒并保存截图。
 
 ---
 
@@ -242,27 +189,24 @@ FLORA 能理解自然语言命令：
 
 ---
 
-## 安防摄像头
-
-![安防摄像头结果](../assets/Security_camera_result.png)
-
-跳帧推理（每 N 帧）+ 类别白名单保持 CPU 占用低。检测到威胁时警报器响 8 秒并保存截图。
-
----
-
-## Meshtastic LoRa 桥
-
-![Meshtastic](../assets/MEshtastic.png)
-
-在 `.env` 设置 `MESH_ENABLED=true` 并把 `MESH_HOST` 指向你的节点。FLORA 会监听任意频道或私聊，只回复发送者 — 完全离线运行。
-
----
-
 ## 存储
 
 ![Storage](../assets/Storage_Data_screenshot.png)
 
 所有捕获帧、农场扫描和安防截图都可通过仪表盘 Events 标签页和存储 API 浏览。
+
+---
+
+## ➕ 运行时增加传感器
+
+仪表盘右上角有 **"+ Add sensors"** 按钮（仅管理员可见）。点击后程序会：
+
+1. 扫描所有 4 个 ADS1115 地址（`0x48`-`0x4B`）× 各 4 通道
+2. 找到读数合理且尚未占用的通道
+3. 把它们注册为新植物（字母 `i`-`p`，最多 16 个）并持久化到 `.plants.json`
+4. 立即开始轮询 — 无需重启或改代码
+
+适合从 2 个传感器的试装方案开始、后续扩容的场景。
 
 ---
 
@@ -366,6 +310,69 @@ python main-hailo.py [options]      # Hailo HAT 构建
 ```
 
 环境变量（见 `.env.example`）：`SECURITY_FRAME_SKIP`、`SECURITY_IMGSZ`、`SECURITY_MODEL`、`FARM_MONITOR_CAMERA`、`DISEASE_MODEL_PATH`、`RIPENESS_MODEL_PATH`、`DISEASE_LABELS_PATH`、`RIPENESS_LABELS_PATH`、`PLANTWATCH_SECURITY_HEF`（Hailo）。
+
+---
+
+## FLORA AI 助手
+*Farm Live Operation and Reasoning Assistant（农场实时操作与推理助手）*
+
+![FLORA 预览](../assets/FLORA_preview.jpeg)
+
+FLORA 是仪表盘里的聊天 Tab — 但它不只回答，它真的会对农场执行操作。它能理解自然语言命令：
+
+- *"给植物 A 浇水"* → 触发脉冲灌溉
+- *"所有植物现在的湿度是多少？"* → 读取全部传感器
+- *"停止 C 号水泵"* → 关掉水泵 C
+- *"现在检测到病害了吗？"* → 查看最新 FarmMonitor 扫描
+
+下表列出的每项能力都绑定到一个真实工具，会触及传感器、继电器、摄像头、事件数据库或邮件队列。当云端 LLM 不可用时，FLORA 会回退到确定性关键字路由 — 每项能力依然能离线工作。
+
+### 能力
+
+| 能力 | 说明 |
+|------|------|
+| **完整农场分析** | 每个活跃植物的实时湿度、水泵状态、传感器健康度、安防摄像头状态以及 FarmMonitor 摄像头读数 — 按需返回。 |
+| **历史查询** | *"上周发生了什么？"*、*"显示过去 3 天的病害检测"* — 由事件数据库回答，事件保存多久就能回溯多久。 |
+| **灌溉控制** | 单独打开 / 停止任一植物的浇水 — *"给 plant C 浇水"*、*"停掉 pump B"*。 |
+| **看守控制** | 启用 / 关闭安防摄像头 + 双蜂鸣报警 — *"guard on"*、*"我出门了"*、*"我回来了"*。 |
+| **FarmMonitor 扫描** | 按需触发植物健康和成熟度扫描 — *"立刻扫描"*、*"看看草莓"*。 |
+| **邮件** | 把检测照片、扫描结果或报告附件直接发到已配置的运营人邮箱。 |
+| **PDF 报告** | 生成可下载的农场状态 PDF，并（可选）在同一次调用里把它邮件发出。 |
+| **任务计划** | 把以上任意操作排到未来 — *"2 小时后给 plant A 浇水"*、*"每天早上 6 点扫描"*。 |
+| **云或离线** | 云模式可用 Groq / Cerebras / Mistral / Gemini 之一进行自然语言理解。离线模式使用确定性关键字路由 — 上面的每项能力依旧可用。 |
+
+### 架构
+
+FLORA 以三个协作的层运行：
+
+| 层 | 角色 |
+|----|------|
+| ![Layer 1](../assets/FLORA_first_layer_Architecture.png) | 服务商路由 + 回退 |
+| ![Layer 2](../assets/FLORA_Second_layer_Architecture.png) | 工具分发（传感器、水泵、摄像头、调度器） |
+| ![Layer 3](../assets/FLORA_Third_Lasyer_Architecture.png) | FLORA 推理与集成 |
+
+---
+
+## 📡 Meshtastic LoRa 桥
+
+在 Wi-Fi 覆盖外通过 LoRa mesh 与 FLORA 聊天 — 完全离线。在 `.env` 中设置 `MESH_ENABLED=true` 并把 `MESH_HOST` 指向你的节点；FLORA 会监听任意频道或私聊，只回复发送者。
+
+<p align="center">
+  <img src="../img/meshtastic-flora-proof.jpg" alt="Meshtastic ↔ FLORA 真实 LoRa 聊天" width="520">
+</p>
+
+`main.py` 和 `main-hailo.py` 都会在**同一个进程内**启动 Meshtastic ↔ FLORA 桥 — 不需要额外启动服务。该桥：
+
+- 通过 TCP 连接本地 `meshtasticd`（默认 `localhost:4403`）
+- 监听任意频道或私聊
+- 通过进程内 HTTP API 转发消息给 FLORA
+- 在收到请求的同一频道回复
+
+Meshtastic 库未安装或连接断开时，桥只打印警告日志，`main.py` 继续运行 — 仪表盘永不阻塞。`MESH_*` 全部可调参数（允许节点、回复模式、频道过滤）见 `.env.example`。
+
+### 核心架构
+
+![Meshtastic](../assets/MEshtastic.png)
 
 ---
 

@@ -34,23 +34,6 @@ Monitor soil moisture, automate irrigation, detect disease,detect harvest ready,
 | **Meshtastic** | LoRa bridge — FLORA answers any channel or DM from your mesh network |
 | **Dashboard** | Dark-theme single-page app: overview, cameras, AI chat, events log, settings |
 
-### 🌿 FLORA Intelligence
-*Farm Live Operation and Reasoning Assistant*
-
-FLORA is the chat tab in the dashboard — but it doesn't only answer, it actually acts on the farm. Every capability below is wired to a real tool that touches sensors, relays, cameras, the event database, or the email queue. When no cloud LLM is reachable, FLORA falls back to deterministic keyword routing so every capability keeps working offline.
-
-| Capability | What FLORA can do |
-|------------|-------------------|
-| **Full farm analysis** | Live moisture, pump state, sensor health, security camera state, and FarmMonitor camera read-out for every active plant — on demand. |
-| **History queries** | *"What happened last week?"*, *"show disease detections in the past 3 days"* — answered from the Storage_Data event database for as long as the events are kept. |
-| **Irrigation control** | Start or stop watering on any plant individually — *"water plant C"*, *"stop pump B"*. |
-| **Guard control** | Arm or disarm the security camera + dual-buzzer siren — *"guard on"*, *"I'm leaving"*, *"I'm back"*. |
-| **FarmMonitor scans** | Trigger plant-health and harvest-readiness scans on demand — *"scan now"*, *"check the strawberries"*. |
-| **Email** | Send detection photos, scan results, or report attachments straight to the configured operator address. |
-| **PDF reports** | Generate a downloadable PDF of farm state and (optionally) email it on the same call. |
-| **Scheduling** | Schedule any of the above for later — *"water plant A in 2 hours"*, *"scan every morning at 6"*. |
-| **Cloud or offline** | Cloud mode uses any one of Groq / Cerebras / Mistral / Gemini for natural-language understanding. Offline mode uses deterministic keyword routing — every capability above still works. |
-
 The repo ships **two entry points** — pick the one that matches your hardware:
 
 | Script | When to use | Security camera engine |
@@ -216,35 +199,14 @@ python main.py                          # picks up wiring.yaml on startup
 
 ---
 
-## 📡 Meshtastic LoRa bridge (in-process)
+## 💧 Irrigation
 
-Both `main.py` and `main-hailo.py` start the Meshtastic ↔ FLORA bridge **in the same process** when `MESH_ENABLED=true` is set in `.env`. No second service to run. The bridge:
+Burst irrigation, one pump per plant — run it two ways:
 
-- Connects to a local `meshtasticd` over TCP (default `localhost:4403`)
-- Listens on any channel or DM
-- Forwards messages to FLORA via the in-process HTTP API
-- Replies to the sender on the same channel the request arrived on
+- **Manual** — tap a plant card on the dashboard **Overview** tab to pulse that plant's pump on demand.
+- **Auto-mode** — the app watches each moisture sensor and waters on its own: it starts a burst when soil drops to **45 %**, stops at **65 %**, and **hard-locks** the pump if a reading ever crosses **70 %**, so a stuck sensor can never flood a plant.
 
-<p align="center">
-  <img src="docs/img/meshtastic-flora-proof.jpg" alt="FLORA replying over a real LoRa mesh" width="520">
-</p>
-
-If the Meshtastic library isn't installed or the connection drops, the bridge logs a warning and main.py keeps running — never blocks the dashboard.
-
-See `.env.example` for the full set of `MESH_*` knobs (allowed nodes, reply mode, channel filter).
-
----
-
-## ➕ Add more sensors at runtime
-
-The dashboard has a **"+ Add sensors"** button (top-right of the overview tab, admin-only). Click it and the app:
-
-1. Scans the I²C bus across all 4 ADS1115 addresses (`0x48`-`0x4B`) × 4 channels each.
-2. Finds channels with a plausible moisture reading that aren't already in use.
-3. Registers them as new plants (letters `i`-`p`, up to 16 total) and persists them to `.plants.json`.
-4. Starts polling them immediately — no restart, no code edits.
-
-Useful when you start with the 2-sensor testing build and expand later.
+Each plant maps to one relay channel and one moisture sensor (see [Wiring](#-wiring-change-one-file-to-match-your-board)). Pumps switch through the opto-isolated relay board — the Pi only drives the relay, never the pump current. Start with a single plant and grow the farm at runtime with [**+ Add sensors**](#-add-more-sensors-at-runtime); FLORA can also water, stop, and schedule any plant by name.
 
 ---
 
@@ -256,26 +218,11 @@ Five tabs: **Overview** (live moisture + pump control), **Cameras** (MJPEG strea
 
 ---
 
-## FLORA AI assistant (Farm Live Operation and Reasoning Assistant)
+## Security camera
 
-![FLORA preview](docs/assets/FLORA_preview.jpeg)
+![Security camera result](docs/assets/Security_camera_result.png)
 
-FLORA understands natural language commands:
-
-- *"Water plant A"* → triggers burst irrigation
-- *"What is the moisture level of all plants?"* → reads all sensors
-- *"Stop the pump on C"* → stops pump C
-- *"Is there any disease detected?"* → checks latest FarmMonitor scan
-
-FLORA works completely offline when no API keys are set, using keyword routing.
-
-### Architecture
-
-| Layer | Role |
-|-------|------|
-| ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | Provider routing + fallback |
-| ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | Tool dispatch (sensors, pumps, camera, scheduler) |
-| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | Flora Reasoning and Integration |
+Frame-skip inference (every Nth frame) with a class allow-list keeps CPU usage low. On threat detection, the siren arms for 8 seconds and a snapshot is saved.
 
 ---
 
@@ -291,27 +238,24 @@ Results are saved to `runtime/farmmonitor/` as JSON + JPEG. If disease is detect
 
 ---
 
-## Security camera
-
-![Security camera result](docs/assets/Security_camera_result.png)
-
-Frame-skip inference (every Nth frame) with a class allow-list keeps CPU usage low. On threat detection, the siren arms for 8 seconds and a snapshot is saved.
-
----
-
-## Meshtastic LoRa bridge
-
-![Meshtastic](docs/assets/MEshtastic.png)
-
-Set `MESH_ENABLED=true` and point `MESH_HOST` at your node. FLORA listens on any channel or DM and replies only to the sender — works completely off-grid.
-
----
-
 ## Storage
 
 ![Storage](docs/assets/Storage_Data_screenshot.png)
 
 All captured frames, farm scans, and security snapshots are browsable from the dashboard Events tab and the storage API.
+
+---
+
+## ➕ Add more sensors at runtime
+
+The dashboard has a **"+ Add sensors"** button (top-right of the overview tab, admin-only). Click it and the app:
+
+1. Scans the I²C bus across all 4 ADS1115 addresses (`0x48`-`0x4B`) × 4 channels each.
+2. Finds channels with a plausible moisture reading that aren't already in use.
+3. Registers them as new plants (letters `i`-`p`, up to 16 total) and persists them to `.plants.json`.
+4. Starts polling them immediately — no restart, no code edits.
+
+Useful when you start with the 2-sensor testing build and expand later.
 
 ---
 
@@ -431,6 +375,69 @@ Environment knobs (see `.env.example`):
 - `DISEASE_LABELS_PATH` / `RIPENESS_LABELS_PATH` — point at custom label JSONs
   (see the bundled `farm_monitor_*_labels.json` for the format).
 - `PLANTWATCH_SECURITY_HEF` — Hailo HEF model for the Hailo build.
+
+---
+
+## FLORA AI assistant
+*Farm Live Operation and Reasoning Assistant*
+
+![FLORA preview](docs/assets/FLORA_preview.jpeg)
+
+FLORA is the chat tab in the dashboard — but it doesn't only answer, it actually acts on the farm. It understands natural-language commands:
+
+- *"Water plant A"* → triggers burst irrigation
+- *"What is the moisture level of all plants?"* → reads all sensors
+- *"Stop the pump on C"* → stops pump C
+- *"Is there any disease detected?"* → checks the latest FarmMonitor scan
+
+Every capability below is wired to a real tool that touches sensors, relays, cameras, the event database, or the email queue. When no cloud LLM is reachable, FLORA falls back to deterministic keyword routing — so every capability keeps working offline.
+
+### Capabilities
+
+| Capability | What it does |
+|------------|--------------|
+| **Full farm analysis** | Live moisture, pump state, sensor health, security camera state, and FarmMonitor camera read-out for every active plant — on demand. |
+| **History queries** | *"What happened last week?"*, *"show disease detections in the past 3 days"* — answered from the event database for as long as the events are kept. |
+| **Irrigation control** | Start or stop watering on any plant individually — *"water plant C"*, *"stop pump B"*. |
+| **Guard control** | Arm or disarm the security camera + dual-buzzer siren — *"guard on"*, *"I'm leaving"*, *"I'm back"*. |
+| **FarmMonitor scans** | Trigger plant-health and harvest-readiness scans on demand — *"scan now"*, *"check the strawberries"*. |
+| **Email** | Send detection photos, scan results, or report attachments straight to the configured operator address. |
+| **PDF reports** | Generate a downloadable PDF of farm state and (optionally) email it on the same call. |
+| **Scheduling** | Schedule any of the above for later — *"water plant A in 2 hours"*, *"scan every morning at 6"*. |
+| **Cloud or offline** | Cloud mode uses any one of Groq / Cerebras / Mistral / Gemini for natural-language understanding. Offline mode uses deterministic keyword routing — every capability above still works. |
+
+### Architecture
+
+FLORA runs as three cooperating layers:
+
+| Layer | Role |
+|-------|------|
+| ![Layer 1](docs/assets/FLORA_first_layer_Architecture.png) | Provider routing + fallback |
+| ![Layer 2](docs/assets/FLORA_Second_layer_Architecture.png) | Tool dispatch (sensors, pumps, camera, scheduler) |
+| ![Layer 3](docs/assets/FLORA_Third_Lasyer_Architecture.png) | FLORA reasoning and integration |
+
+---
+
+## 📡 Meshtastic LoRa bridge
+
+Chat with FLORA from outside Wi-Fi range, over a LoRa mesh — completely off-grid. Set `MESH_ENABLED=true` in `.env` and point `MESH_HOST` at your node; FLORA listens on any channel or DM and replies only to the sender.
+
+<p align="center">
+  <img src="docs/img/meshtastic-flora-proof.jpg" alt="FLORA replying over a real LoRa mesh" width="520">
+</p>
+
+Both `main.py` and `main-hailo.py` start the Meshtastic ↔ FLORA bridge **in the same process** — no second service to run. The bridge:
+
+- Connects to a local `meshtasticd` over TCP (default `localhost:4403`)
+- Listens on any channel or DM
+- Forwards messages to FLORA via the in-process HTTP API
+- Replies to the sender on the same channel the request arrived on
+
+If the Meshtastic library isn't installed or the connection drops, the bridge logs a warning and `main.py` keeps running — it never blocks the dashboard. See `.env.example` for the full set of `MESH_*` knobs (allowed nodes, reply mode, channel filter).
+
+### Core architecture
+
+![Meshtastic](docs/assets/MEshtastic.png)
 
 ---
 
