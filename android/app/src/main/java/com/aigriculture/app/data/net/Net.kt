@@ -46,13 +46,34 @@ object Net {
         prefs.baseUrl?.let { setBaseUrl(it, persist = false) }
     }
 
-    /** Accepts "ip:port", "http://host:port", "https://host" → normalized base. */
+    /** Accepts "ip:port", "host.domain", "http://host:port", "https://host" → base. */
     fun normalize(input: String): String? {
         var s = input.trim()
         if (s.isEmpty()) return null
-        if (!s.startsWith("http://", true) && !s.startsWith("https://", true)) s = "http://$s"
+        if (!s.startsWith("http://", true) && !s.startsWith("https://", true)) {
+            // A public domain (a dotted host, no port, not an IP) is almost always
+            // served over HTTPS behind a reverse proxy. Defaulting it to http makes
+            // the proxy 301-redirect to https, which turns the login POST into a GET
+            // and breaks auth. So pick https for domains, http for LAN IPs / host:port.
+            s = (if (looksLikeHttpsHost(s)) "https://" else "http://") + s
+        }
         val url = s.toHttpUrlOrNull() ?: return null
         return url.toString().trimEnd('/')
+    }
+
+    private fun looksLikeHttpsHost(raw: String): Boolean {
+        val hostPort = raw.substringBefore('/')
+        if (hostPort.contains(':')) return false                 // explicit port → LAN http
+        val isIpv4 = hostPort.matches(Regex("""\d{1,3}(\.\d{1,3}){3}"""))
+        if (isIpv4) return false                                 // bare IP → LAN http
+        return hostPort.contains('.')                            // domain name → https
+    }
+
+    /** The other scheme for [norm], so Connect can retry if the first guess fails. */
+    fun altScheme(norm: String): String? = when {
+        norm.startsWith("https://") -> "http://" + norm.removePrefix("https://")
+        norm.startsWith("http://") -> "https://" + norm.removePrefix("http://")
+        else -> null
     }
 
     fun setBaseUrl(input: String, persist: Boolean = true): Boolean {

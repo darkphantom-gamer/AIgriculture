@@ -45,5 +45,17 @@ class FarmMonitorViewModel : ViewModel() {
         }
     }
 
+    fun stopScan() {
+        _ui.update { it.copy(scanBusy = true) }
+        viewModelScope.launch {
+            val msg = when (val r = AigriRepository.scanStop()) {
+                is ApiResult.Ok -> r.value
+                is ApiResult.Err -> r.message
+            }
+            _ui.update { it.copy(scanBusy = false, toast = msg) }
+            refresh()
+        }
+    }
+
     fun clearToast() = _ui.update { it.copy(toast = null) }
 }

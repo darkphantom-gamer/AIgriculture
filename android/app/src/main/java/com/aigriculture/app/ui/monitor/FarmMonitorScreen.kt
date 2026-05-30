@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ import com.aigriculture.app.ui.theme.AigriOnAccent
 import com.aigriculture.app.ui.theme.AigriSidebar
 import com.aigriculture.app.ui.theme.AigriText
 import com.aigriculture.app.ui.theme.AigriWarn
+import com.aigriculture.app.ui.theme.Dimens
 import kotlinx.coroutines.delay
 
 @Composable
@@ -141,13 +144,29 @@ fun FarmMonitorScreen(vm: FarmMonitorViewModel = viewModel()) {
             }
 
             item {
-                PrimaryButton(
-                    text = if (scanning) "Scanning…" else "Scan now",
-                    onClick = vm::scanNow,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !scanning,
-                    loading = ui.scanBusy,
-                )
+                if (scanning) {
+                    Button(
+                        onClick = vm::stopScan,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !ui.scanBusy,
+                        shape = RoundedCornerShape(Dimens.radiusSm),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AigriDanger,
+                            contentColor = Color.White,
+                            disabledContainerColor = AigriBorder,
+                            disabledContentColor = AigriMuted,
+                        ),
+                    ) {
+                        Text(if (ui.scanBusy) "Stopping…" else "Stop scan", fontWeight = FontWeight.W700)
+                    }
+                } else {
+                    PrimaryButton(
+                        text = "Scan now",
+                        onClick = vm::scanNow,
+                        modifier = Modifier.fillMaxWidth(),
+                        loading = ui.scanBusy,
+                    )
+                }
             }
         }
     }

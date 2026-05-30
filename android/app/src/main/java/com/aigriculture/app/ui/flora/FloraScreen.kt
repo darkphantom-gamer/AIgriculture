@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -30,14 +31,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.aigriculture.app.data.net.Net
 import com.aigriculture.app.data.net.ScheduleTask
 import com.aigriculture.app.ui.common.AigriTextField
 import com.aigriculture.app.ui.theme.AigriAccent
@@ -55,6 +64,7 @@ import com.aigriculture.app.ui.theme.AigriText
 fun FloraScreen(vm: FloraViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
     val listState = rememberLazyListState()
+    var viewerUrl by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(ui.messages.size, ui.typing) {
         val count = ui.messages.size + if (ui.typing) 1 else 0
         if (count > 0) listState.animateScrollToItem(count - 1)
@@ -68,11 +78,33 @@ fun FloraScreen(vm: FloraViewModel = viewModel()) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(ui.messages, key = { it.id }) { Bubble(it) }
+            items(ui.messages, key = { it.id }) { Bubble(it) { url -> viewerUrl = url } }
             if (ui.typing) item(key = "typing") { TypingBubble() }
         }
         ScheduleBar(tasks = ui.schedule, open = ui.scheduleOpen, onToggle = vm::toggleSchedule)
         InputBar(value = ui.input, onChange = vm::onInput, onSend = vm::send)
+    }
+
+    viewerUrl?.let { url ->
+        Dialog(
+            onDismissRequest = { viewerUrl = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.95f))
+                    .clickable { viewerUrl = null },
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Evidence photo",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+        }
     }
 }
 
@@ -195,22 +227,29 @@ private fun ModeChip(label: String, active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Bubble(m: ChatMsg) {
+private fun Bubble(m: ChatMsg, onImageClick: (String) -> Unit) {
     when (m.role) {
         Role.SYS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Text(m.text, color = AigriMuted, fontSize = 12.sp)
         }
         Role.USER -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            BubbleBox(m.text, AigriTeal, Color.White, end = true)
+            BubbleBox(m.text, AigriTeal, Color.White, end = true, rich = false, onImageClick = onImageClick)
         }
         Role.FLORA -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-            BubbleBox(m.text, AigriCard, AigriText, end = false)
+            BubbleBox(m.text, AigriCard, AigriText, end = false, rich = true, onImageClick = onImageClick)
         }
     }
 }
 
 @Composable
-private fun BubbleBox(text: String, bg: Color, fg: Color, end: Boolean) {
+private fun BubbleBox(
+    text: String,
+    bg: Color,
+    fg: Color,
+    end: Boolean,
+    rich: Boolean = false,
+    onImageClick: (String) -> Unit = {},
+) {
     Surface(
         modifier = Modifier.widthIn(max = 320.dp),
         color = bg,
@@ -222,7 +261,66 @@ private fun BubbleBox(text: String, bg: Color, fg: Color, end: Boolean) {
         ),
         border = if (end) null else BorderStroke(1.dp, AigriBorder),
     ) {
-        Text(text, modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp), fontSize = 14.sp)
+        if (rich) {
+            Box(Modifier.padding(horizontal = 11.dp, vertical = 9.dp)) {
+                FloraRichText(text, fg, onImageClick)
+            }
+        } else {
+            Text(text, modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp), fontSize = 14.sp)
+        }
+    }
+}
+
+private val IMG_RE = Regex("""!\[([^\]]*)]\(([^)]+)\)""")
+
+private sealed interface MdPart {
+    data class TextPart(val text: String) : MdPart
+    data class ImagePart(val alt: String, val url: String) : MdPart
+}
+
+private fun splitMarkdown(text: String): List<MdPart> {
+    val parts = mutableListOf<MdPart>()
+    var last = 0
+    for (m in IMG_RE.findAll(text)) {
+        if (m.range.first > last) parts.add(MdPart.TextPart(text.substring(last, m.range.first)))
+        parts.add(MdPart.ImagePart(m.groupValues[1], m.groupValues[2]))
+        last = m.range.last + 1
+    }
+    if (last < text.length) parts.add(MdPart.TextPart(text.substring(last)))
+    if (parts.isEmpty()) parts.add(MdPart.TextPart(text))
+    return parts
+}
+
+/** Renders a FLORA reply: markdown image links become tappable thumbnails, the rest
+ *  is shown as text with bold markers stripped. */
+@Composable
+private fun FloraRichText(text: String, fg: Color, onImageClick: (String) -> Unit) {
+    val parts = remember(text) { splitMarkdown(text) }
+    Column {
+        parts.forEach { part ->
+            when (part) {
+                is MdPart.TextPart -> {
+                    val clean = part.text.replace("**", "").trim()
+                    if (clean.isNotEmpty()) {
+                        Text(clean, color = fg, fontSize = 14.sp, modifier = Modifier.padding(vertical = 2.dp))
+                    }
+                }
+                is MdPart.ImagePart -> {
+                    val url = if (part.url.startsWith("http")) part.url else Net.absUrl(part.url)
+                    AsyncImage(
+                        model = url,
+                        contentDescription = part.alt.ifBlank { "Evidence" },
+                        modifier = Modifier
+                            .padding(vertical = 6.dp)
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onImageClick(url) },
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -18,20 +18,35 @@ object AigriRepository {
 
     /** Validate that [input] points at a reachable AIgriculture server. */
     suspend fun probeServer(input: String): ApiResult<Unit> {
+        val trimmed = input.trim()
+        val hadScheme = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
         if (!Net.setBaseUrl(input)) return ApiResult.Err("That doesn't look like a valid address.")
-        return try {
-            val resp = Net.api.probeLogin()
-            if (!resp.isSuccessful) {
-                return ApiResult.Err("Server responded ${resp.code()} — check the address and port.")
-            }
+        val first = tryProbe()
+        if (first is ApiResult.Ok || hadScheme) return first
+        // No scheme typed and the first guess failed — try the other scheme once,
+        // so a cloud domain on https (or a LAN box on http) connects either way.
+        val alt = Net.baseUrl?.let { Net.altScheme(it) }
+        if (alt != null && Net.setBaseUrl(alt)) {
+            val second = tryProbe()
+            if (second is ApiResult.Ok) return second
+            Net.setBaseUrl(input) // restore the original guess for the error message
+        }
+        return first
+    }
+
+    private suspend fun tryProbe(): ApiResult<Unit> = try {
+        val resp = Net.api.probeLogin()
+        if (!resp.isSuccessful) {
+            ApiResult.Err("Server responded ${resp.code()} — check the address and port.")
+        } else {
             val body = resp.body()?.string().orEmpty()
             if (body.contains("AIgriculture", true) || body.contains("pmc_token", true) ||
                 body.contains("password", true)
             ) ApiResult.Ok(Unit)
             else ApiResult.Err("Reached a server, but it doesn't look like AIgriculture.")
-        } catch (e: Exception) {
-            ApiResult.Err(friendly(e))
         }
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
     }
 
     suspend fun login(username: String, password: String): ApiResult<String> = try {
@@ -184,6 +199,15 @@ object AigriRepository {
         val b = resp.body()
         if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.message ?: "Scan queued.")
         else ApiResult.Err(b?.error ?: "Couldn't start scan (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun scanStop(): ApiResult<String> = try {
+        val resp = Net.api.scanStop()
+        val b = resp.body()
+        if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.message ?: "Stopping scan.")
+        else ApiResult.Err(b?.error ?: "Couldn't stop scan (${resp.code()}).", resp.code())
     } catch (e: Exception) {
         ApiResult.Err(friendly(e))
     }

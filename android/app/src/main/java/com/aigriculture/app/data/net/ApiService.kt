@@ -79,6 +79,9 @@ interface ApiService {
     @POST("api/farm_monitor/scan_now")
     suspend fun scanNow(): Response<SimpleOk>
 
+    @POST("api/farm_monitor/scan_stop")
+    suspend fun scanStop(): Response<SimpleOk>
+
     @GET("api/analytics")
     suspend fun analytics(): AnalyticsResp
 
