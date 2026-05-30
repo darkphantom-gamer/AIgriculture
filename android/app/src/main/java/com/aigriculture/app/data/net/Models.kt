@@ -247,3 +247,15 @@ data class NotifEmailResp(
 
 @Serializable
 data class NotifEmailReq(val email: String)
+
+// ── FLORA scheduled tasks (/api/flora/schedule returns a JSON array of these) ──
+@Serializable
+data class ScheduleTask(
+    val job_id: String = "",
+    val tool_name: String? = null,
+    val tool_args: String = "{}",
+    val repeat: String = "once",
+    val run_at: String? = null,
+    val run_at_iso: String = "",
+    val status: String = "pending",
+)

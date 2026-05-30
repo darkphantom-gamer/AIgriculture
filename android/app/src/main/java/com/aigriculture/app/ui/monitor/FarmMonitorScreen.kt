@@ -93,7 +93,7 @@ fun FarmMonitorScreen(vm: FarmMonitorViewModel = viewModel()) {
                     Column {
                         if (s?.camera_ok == false) {
                             Box(
-                                Modifier.fillMaxWidth().height(220.dp).background(Color.Black),
+                                Modifier.fillMaxWidth().height(320.dp).background(Color.Black),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
@@ -102,7 +102,7 @@ fun FarmMonitorScreen(vm: FarmMonitorViewModel = viewModel()) {
                                 )
                             }
                         } else {
-                            MjpegView("farm_stream", Modifier.fillMaxWidth().height(220.dp))
+                            MjpegView("farm_stream", Modifier.fillMaxWidth().height(320.dp))
                         }
                         Text(
                             "Live field camera",

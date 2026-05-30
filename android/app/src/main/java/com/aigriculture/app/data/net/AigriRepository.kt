@@ -1,5 +1,6 @@
 package com.aigriculture.app.data.net
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.HttpException
@@ -70,6 +71,22 @@ object AigriRepository {
         val b = resp.body()
         if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.enabled)
         else ApiResult.Err("Couldn't change auto-irrigation (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun floraSchedule(): ApiResult<List<ScheduleTask>> = try {
+        val resp = Net.api.floraSchedule()
+        val body = resp.body()
+        if (resp.isSuccessful && body is JsonArray) {
+            ApiResult.Ok(
+                body.mapNotNull {
+                    runCatching { Net.json.decodeFromJsonElement(ScheduleTask.serializer(), it) }.getOrNull()
+                }
+            )
+        } else {
+            ApiResult.Ok(emptyList())
+        }
     } catch (e: Exception) {
         ApiResult.Err(friendly(e))
     }
@@ -155,8 +172,9 @@ object AigriRepository {
 
     private fun mapSensorErr(err: String): String = when {
         err.contains("i2c_unavailable", true) ->
-            "No I²C bus detected — runtime sensor add needs a Pi with an ADS1115 wired up."
-        else -> err
+            "No sensor bus detected — check the sensor wiring and that the board is connected, then try again."
+        // The server occasionally names the chip; keep the message beginner-friendly.
+        else -> err.replace("ADS1115", "sensor board").replace("ADDR pin", "wiring")
     }
 
     suspend fun farmStatus(): ApiResult<FarmStatus> = call { Net.api.farmStatus() }

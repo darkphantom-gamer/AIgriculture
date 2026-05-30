@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
+import com.aigriculture.app.data.net.MjpegFrameCache
 import com.aigriculture.app.data.net.MjpegStream
 import com.aigriculture.app.data.net.Net
 import com.aigriculture.app.ui.theme.AigriAccent
@@ -37,7 +38,7 @@ fun MjpegView(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
 ) {
-    var bitmap by remember(path) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(path) { mutableStateOf(MjpegFrameCache.get(path)) }
     var error by remember(path) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(path) {
@@ -50,6 +51,7 @@ fun MjpegView(
             .frames()
             .catch { e -> error = e.message ?: "Stream unavailable" }
             .collect { frame ->
+                MjpegFrameCache.put(path, frame)
                 bitmap = frame
                 error = null
             }

@@ -88,7 +88,7 @@ fun SecurityScreen(vm: SecurityViewModel = viewModel()) {
             item {
                 AigriCard(Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     Column {
-                        MjpegView("stream", Modifier.fillMaxWidth().height(220.dp))
+                        MjpegView("stream", Modifier.fillMaxWidth().height(320.dp))
                         Text(
                             "Live security camera",
                             color = AigriMuted,

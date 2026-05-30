@@ -81,7 +81,7 @@ class StatusViewModel : ViewModel() {
                                 scanning = false,
                                 available = n,
                                 message = if (n == 0)
-                                    "No new sensors found. Wire a moisture sensor into a free ADS1115 channel and scan again."
+                                    "No new sensors found. Check that a moisture sensor is wired in correctly, then scan again."
                                 else "Found $n available channel(s) ready to add.",
                             )
                         )

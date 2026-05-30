@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.aigriculture.app.data.net.AigriRepository
 import com.aigriculture.app.data.net.ApiResult
 import com.aigriculture.app.data.net.FloraSocket
+import com.aigriculture.app.data.net.ScheduleTask
 import com.aigriculture.app.data.net.WsStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,8 @@ data class FloraUi(
     val mode: String = "offline", // "cloud" | "offline"
     val connected: Boolean = false,
     val input: String = "",
+    val schedule: List<ScheduleTask> = emptyList(),
+    val scheduleOpen: Boolean = false,
 )
 
 /**
@@ -61,11 +64,26 @@ class FloraViewModel : ViewModel() {
             socket.events.collect { handleEvent(it) }
         }
         socket.connect()
+        loadSchedule()
     }
 
     fun onInput(v: String) = _ui.update { it.copy(input = v) }
     fun setMode(m: String) = _ui.update { it.copy(mode = m) }
     fun reconnect() = socket.connect()
+
+    fun toggleSchedule() {
+        val opening = !_ui.value.scheduleOpen
+        _ui.update { it.copy(scheduleOpen = opening) }
+        if (opening) loadSchedule()
+    }
+
+    fun loadSchedule() {
+        viewModelScope.launch {
+            (AigriRepository.floraSchedule() as? ApiResult.Ok)?.let { r ->
+                _ui.update { it.copy(schedule = r.value) }
+            }
+        }
+    }
 
     fun send() {
         val text = _ui.value.input.trim()
@@ -108,6 +126,7 @@ class FloraViewModel : ViewModel() {
             "scheduled_result" -> {
                 val summary = m["summary"]?.jsonPrimitive?.content
                 addMsg(Role.FLORA, summary ?: ("✅ " + str(m, "tool") + " completed"))
+                loadSchedule()
             }
             // tool_result and other intermediate events: the final 'response' carries the text.
         }

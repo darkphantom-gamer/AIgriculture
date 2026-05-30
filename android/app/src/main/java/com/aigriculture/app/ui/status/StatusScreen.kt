@@ -58,6 +58,7 @@ import com.aigriculture.app.ui.theme.AigriText
 import com.aigriculture.app.ui.theme.AigriWarn
 import com.aigriculture.app.ui.theme.Dimens
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonArray
 import kotlin.math.roundToInt
 
 @Composable
@@ -102,6 +103,7 @@ fun StatusScreen(vm: StatusViewModel = viewModel()) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                item { OverviewCard(state) }
                 item { AutoCard(state, vm::toggleAuto) }
                 item {
                     Box(
@@ -273,6 +275,52 @@ private fun PlantCard(
             } else {
                 Text("sensor\nonly", color = AigriMuted, fontSize = 11.sp)
             }
+        }
+    }
+}
+
+@Composable
+private fun OverviewCard(state: StateMsg) {
+    val online = state.sensor_status.values.count { it.online }
+    val total = state.active_plants.size
+    val pumpsOn = state.pumps.values.count { it }
+    val alertsN = (state.alerts as? JsonArray)?.size ?: 0
+    val away = !state.at_farm
+    val avg = avgMoisture(state)
+    AigriCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).background(if (alertsN > 0) AigriDanger else AigriOk, CircleShape))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (alertsN > 0) "$alertsN active alert${if (alertsN > 1) "s" else ""}" else "All clear",
+                color = AigriText, fontWeight = FontWeight.W700, fontSize = 15.sp,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(if (away) "Guard armed" else "At farm", color = AigriMuted, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MiniStat("Avg moist", avg?.let { "$it%" } ?: "—", colorFor(avg?.toDouble()), Modifier.weight(1f))
+            MiniStat("Sensors", "$online/$total", AigriAccent, Modifier.weight(1f))
+            MiniStat("Pumps on", "$pumpsOn", if (pumpsOn > 0) AigriBlue else AigriMuted, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun MiniStat(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .background(AigriBorder.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+            .padding(vertical = 10.dp, horizontal = 6.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(value, color = accent, fontWeight = FontWeight.W800, fontSize = 18.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(label, color = AigriMuted, fontSize = 9.sp)
         }
     }
 }
