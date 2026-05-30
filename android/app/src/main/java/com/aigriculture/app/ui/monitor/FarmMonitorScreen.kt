@@ -51,7 +51,7 @@ import com.aigriculture.app.ui.theme.Dimens
 import kotlinx.coroutines.delay
 
 @Composable
-fun FarmMonitorScreen(vm: FarmMonitorViewModel = viewModel()) {
+fun FarmMonitorScreen(showHeader: Boolean = true, vm: FarmMonitorViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -70,13 +70,15 @@ fun FarmMonitorScreen(vm: FarmMonitorViewModel = viewModel()) {
     val scanning = state == "scanning" || state == "queued"
 
     Column(modifier = Modifier.fillMaxSize().background(AigriBg)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().background(AigriSidebar).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("FarmMonitor", color = AigriText, fontWeight = FontWeight.W700, fontSize = 16.sp)
-            Spacer(Modifier.weight(1f))
-            StateBadge(state)
+        if (showHeader) {
+            Row(
+                modifier = Modifier.fillMaxWidth().background(AigriSidebar).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("FarmMonitor", color = AigriText, fontWeight = FontWeight.W700, fontSize = 16.sp)
+                Spacer(Modifier.weight(1f))
+                StateBadge(state)
+            }
         }
 
         LazyColumn(

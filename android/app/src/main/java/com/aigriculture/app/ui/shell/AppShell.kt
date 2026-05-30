@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -26,11 +26,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aigriculture.app.ui.analytics.AnalyticsScreen
+import com.aigriculture.app.ui.camera.LiveCameraScreen
 import com.aigriculture.app.ui.flora.FloraScreen
-import com.aigriculture.app.ui.monitor.FarmMonitorScreen
-import com.aigriculture.app.ui.security.SecurityScreen
 import com.aigriculture.app.ui.settings.SettingsScreen
 import com.aigriculture.app.ui.status.StatusScreen
+import com.aigriculture.app.ui.storage.StorageScreen
 import com.aigriculture.app.ui.theme.AigriAccent
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriMuted
@@ -40,8 +40,8 @@ import com.aigriculture.app.ui.theme.AigriSidebar
 private enum class Tab(val label: String, val icon: ImageVector) {
     FLORA("FLORA", Icons.Filled.AutoAwesome),
     STATUS("Status", Icons.Filled.Spa),
-    MONITOR("Monitor", Icons.Filled.Agriculture),
-    SECURITY("Security", Icons.Filled.Videocam),
+    CAMERA("Camera", Icons.Filled.Videocam),
+    STORAGE("Storage", Icons.Filled.Storage),
     ANALYTICS("Analytics", Icons.Filled.BarChart),
     SETTINGS("Settings", Icons.Filled.Settings),
 }
@@ -77,8 +77,8 @@ fun AppShell(onLoggedOut: () -> Unit) {
             when (tabs[index]) {
                 Tab.FLORA -> FloraScreen()
                 Tab.STATUS -> StatusScreen()
-                Tab.MONITOR -> FarmMonitorScreen()
-                Tab.SECURITY -> SecurityScreen()
+                Tab.CAMERA -> LiveCameraScreen()
+                Tab.STORAGE -> StorageScreen()
                 Tab.ANALYTICS -> AnalyticsScreen()
                 Tab.SETTINGS -> SettingsScreen(onLoggedOut = onLoggedOut)
             }

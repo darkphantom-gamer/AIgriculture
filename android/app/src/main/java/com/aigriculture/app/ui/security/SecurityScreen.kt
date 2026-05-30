@@ -47,7 +47,7 @@ import com.aigriculture.app.ui.theme.AigriText
 import kotlinx.coroutines.delay
 
 @Composable
-fun SecurityScreen(vm: SecurityViewModel = viewModel()) {
+fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -62,15 +62,17 @@ fun SecurityScreen(vm: SecurityViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AigriBg)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().background(AigriSidebar).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Security", color = AigriText, fontWeight = FontWeight.W700, fontSize = 16.sp)
-            Spacer(Modifier.weight(1f))
-            Box(Modifier.size(8.dp).background(if (ui.armed) AigriDanger else AigriOk, CircleShape))
-            Spacer(Modifier.width(6.dp))
-            Text(if (ui.armed) "Guard ON" else "Guard off", color = AigriMuted, fontSize = 12.sp)
+        if (showHeader) {
+            Row(
+                modifier = Modifier.fillMaxWidth().background(AigriSidebar).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Security", color = AigriText, fontWeight = FontWeight.W700, fontSize = 16.sp)
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.size(8.dp).background(if (ui.armed) AigriDanger else AigriOk, CircleShape))
+                Spacer(Modifier.width(6.dp))
+                Text(if (ui.armed) "Guard ON" else "Guard off", color = AigriMuted, fontSize = 12.sp)
+            }
         }
 
         LazyColumn(
