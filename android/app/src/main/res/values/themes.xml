@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Framework-only dark theme (no AppCompat/Material-Components dependency).
+      Compose paints the real UI; this just sets the window background and system
+      bar colors so there is no white flash before Compose draws.
+    -->
+    <style name="Theme.AIgriculture" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/aigri_bg</item>
+        <item name="android:statusBarColor">@color/aigri_sidebar</item>
+        <item name="android:navigationBarColor">@color/aigri_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

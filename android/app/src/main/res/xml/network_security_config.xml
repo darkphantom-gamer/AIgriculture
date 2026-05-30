@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AIgriculture runs on a Raspberry Pi, usually reached over LAN by plain http
+  (e.g. http://192.168.1.50:8000). Cleartext is therefore permitted. When the
+  operator exposes the Pi over HTTPS with their own certificate, trusting the
+  "user" anchor lets a sideloaded/self-signed cert work without a rebuild.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the dashboard dark palette (design/dashboard.html :root + [data-theme=dark]). -->
+    <color name="aigri_bg">#FF0D1B24</color>
+    <color name="aigri_sidebar">#FF0B1F2A</color>
+    <color name="aigri_accent">#FF00CDB5</color>
+    <color name="ic_launcher_background">#FF0B1F2A</color>
+</resources>
