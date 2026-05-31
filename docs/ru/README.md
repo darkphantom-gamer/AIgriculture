@@ -71,19 +71,66 @@
 ```bash
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
-cp .env.example .env            # потом РЕДАКТИРУЙТЕ .env (см. следующий раздел)
-python main.py
+
+# 1) Системные пакеты (один раз)
+sudo apt update
+sudo apt install -y python3-lgpio python3-pip i2c-tools mariadb-server
+sudo raspi-config nonint do_i2c 0          # включить I2C
+
+# 2) Python-зависимости
+pip install -r requirements.txt --break-system-packages
+
+# 3) Конфигурация
+cp .env.example .env                       # потом РЕДАКТИРУЙТЕ .env (пользователь/пароль, ключи API)
+cp config.example.yaml config.yaml         # потом РЕДАКТИРУЙТЕ config.yaml (SMTP для e-mail)
+cp wiring.example.yaml wiring.yaml         # ТОЛЬКО если изменили пины по умолчанию
+
+# 4) Запуск — выберите ОДНУ точку входа
+python main.py                              # CPU-сборка (по умолчанию)
+# python main-hailo.py                      # Hailo-сборка (только если HAT подключён)
+
+# Включить камеру безопасности с frame-skip CPU YOLO:
+python main.py --security-cam /dev/video0
 ```
 
-Откройте `http://<pi-ip>:8000`.
+Откройте `http://<pi-ip>:8000` и войдите с `ADMIN_USER` / `ADMIN_PASS`, которые задали в `.env`.
 
-> **Запускаете на ноутбуке / не на Pi?** Это тоже работает. GPIO и I2C тихо становятся «no-op», когда железа нет — вам доступны дашборд, ИИ-чат и USB / сетевые камеры.
+> **Запускаете на ноутбуке / не на Pi?** Используйте `main.py` (CPU-сборка). GPIO и I²C тихо становятся «no-op» при отсутствии железа — полноценный дашборд, ИИ-чат и USB / сетевые камеры доступны. Пропустите шаг 1; просто `pip install -r requirements.txt` и `python main.py`.
 
-> **Хотите нативную установку?**
-> ```bash
-> pip install -r requirements.txt --break-system-packages
-> python main.py
-> ```
+### База данных
+
+Конфигурация по умолчанию подключается к MariaDB / MySQL на `localhost:3306`. После `sudo apt install mariadb-server` создайте пользователя и базу данных под ваш `.env`:
+
+```bash
+sudo mysql -e "CREATE DATABASE plantmonitor;
+               CREATE USER 'plantmonitor'@'localhost' IDENTIFIED BY 'CHANGE-ME';
+               GRANT ALL ON plantmonitor.* TO 'plantmonitor'@'localhost';
+               FLUSH PRIVILEGES;"
+```
+
+Задайте `DB_USER`, `DB_PASS`, `DB_NAME` в `.env`. Приложение создаёт таблицы автоматически при первом запуске.
+
+### Автозапуск (опционально)
+
+```bash
+sudo tee /etc/systemd/system/aigriculture.service > /dev/null <<EOF
+[Unit]
+Description=AIgriculture
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/AIgriculture
+ExecStart=/usr/bin/python3 /home/pi/AIgriculture/main.py --security-cam /dev/video0
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now aigriculture
+```
 
 ---
 
@@ -313,7 +360,17 @@ python main-hailo.py [options]      # Hailo HAT-сборка
   --use-rpicam        путь захвата picamera2 (libcamera) для FarmMonitor
 ```
 
-Переменные окружения (см. `.env.example`): `SECURITY_FRAME_SKIP`, `SECURITY_IMGSZ`, `SECURITY_MODEL`, `FARM_MONITOR_CAMERA`, `DISEASE_MODEL_PATH`, `RIPENESS_MODEL_PATH`, `DISEASE_LABELS_PATH`, `RIPENESS_LABELS_PATH`, `PLANTWATCH_SECURITY_HEF` (Hailo).
+Переменные окружения (см. `.env.example`):
+- `SECURITY_FRAME_SKIP` (по умолчанию 5), `SECURITY_IMGSZ` (по умолчанию 640),
+  `SECURITY_MODEL` (по умолчанию `yolov8s.pt` — замените на `yolov8n.pt` для максимального FPS
+  или `yolov8m.pt` для более высокого recall).
+- `FARM_MONITOR_CAMERA` — `/dev/videoN`, `rpi`, `rtsp://…`, `http://…` или
+  пустое значение для автоопределения USB-камеры.
+- `DISEASE_MODEL_PATH` / `RIPENESS_MODEL_PATH` — укажите на любой YOLOv8 `.pt`
+  в `Models/`, чтобы переключить культуру без правки кода.
+- `DISEASE_LABELS_PATH` / `RIPENESS_LABELS_PATH` — путь к своим JSON-меткам
+  (формат — в поставляемых `farm_monitor_*_labels.json`).
+- `PLANTWATCH_SECURITY_HEF` — Hailo HEF модель для Hailo-сборки.
 
 ---
 

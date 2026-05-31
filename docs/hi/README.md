@@ -71,19 +71,66 @@
 ```bash
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
-cp .env.example .env            # फिर .env एडिट करें (अगला सेक्शन देखें)
-python main.py
+
+# 1) सिस्टम पैकेज (एक बार)
+sudo apt update
+sudo apt install -y python3-lgpio python3-pip i2c-tools mariadb-server
+sudo raspi-config nonint do_i2c 0          # I2C चालू करें
+
+# 2) Python डिपेंडेंसी
+pip install -r requirements.txt --break-system-packages
+
+# 3) कॉन्फ़िगरेशन
+cp .env.example .env                       # फिर .env एडिट करें (admin user/pass, API keys)
+cp config.example.yaml config.yaml         # फिर config.yaml एडिट करें (ईमेल अलर्ट के लिए SMTP)
+cp wiring.example.yaml wiring.yaml         # केवल तब जब डिफ़ॉल्ट पिन बदले हों
+
+# 4) चलाएं — एक ही एंट्री पॉइंट चुनें
+python main.py                              # CPU बिल्ड (डिफ़ॉल्ट)
+# python main-hailo.py                      # Hailo बिल्ड (तभी जब HAT लगा हो)
+
+# frame-skip CPU YOLO के साथ सिक्योरिटी कैमरा चालू करें:
+python main.py --security-cam /dev/video0
 ```
 
-ब्राउज़र में `http://<pi-ip>:8000` खोलें।
+ब्राउज़र में `http://<pi-ip>:8000` खोलें और `.env` में सेट किए `ADMIN_USER` / `ADMIN_PASS` से लॉगिन करें।
 
-> **लैपटॉप / Non-Pi पर चला रहे हैं?** चलेगा। हार्डवेयर न होने पर GPIO/I2C ख़ामोशी से no-op कर देते हैं — डैशबोर्ड, AI चैट, और (USB/नेटवर्क) कैमरे फिर भी काम करेंगे।
+> **लैपटॉप / Non-Pi पर चला रहे हैं?** `main.py` (CPU बिल्ड) लें। हार्डवेयर न होने पर GPIO और I²C ख़ामोशी से no-op हो जाते हैं — डैशबोर्ड, AI चैट, और USB/नेटवर्क कैमरे काम करेंगे। स्टेप 1 छोड़ें; बस `pip install -r requirements.txt` और `python main.py`।
 
-> **नेटिव इंस्टॉल चाहिए?**
-> ```bash
-> pip install -r requirements.txt --break-system-packages
-> python main.py
-> ```
+### डेटाबेस
+
+डिफ़ॉल्ट कॉन्फ़िग `localhost:3306` पर MariaDB / MySQL से बात करता है। `sudo apt install mariadb-server` के बाद, अपने `.env` के हिसाब से यूज़र + डेटाबेस बनाएं:
+
+```bash
+sudo mysql -e "CREATE DATABASE plantmonitor;
+               CREATE USER 'plantmonitor'@'localhost' IDENTIFIED BY 'CHANGE-ME';
+               GRANT ALL ON plantmonitor.* TO 'plantmonitor'@'localhost';
+               FLUSH PRIVILEGES;"
+```
+
+`.env` में `DB_USER`, `DB_PASS`, `DB_NAME` मैच करें। ऐप पहली बार चलने पर खुद टेबल बना लेता है।
+
+### बूट पर चलाएं (वैकल्पिक)
+
+```bash
+sudo tee /etc/systemd/system/aigriculture.service > /dev/null <<EOF
+[Unit]
+Description=AIgriculture
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/AIgriculture
+ExecStart=/usr/bin/python3 /home/pi/AIgriculture/main.py --security-cam /dev/video0
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now aigriculture
+```
 
 ---
 
@@ -313,7 +360,17 @@ python main-hailo.py [options]      # Hailo HAT बिल्ड
   --use-rpicam        FarmMonitor के लिए picamera2 (libcamera) कैप्चर पाथ
 ```
 
-एनवायरनमेंट वैरिएबल (`.env.example` देखें): `SECURITY_FRAME_SKIP`, `SECURITY_IMGSZ`, `SECURITY_MODEL`, `FARM_MONITOR_CAMERA`, `DISEASE_MODEL_PATH`, `RIPENESS_MODEL_PATH`, `DISEASE_LABELS_PATH`, `RIPENESS_LABELS_PATH`, `PLANTWATCH_SECURITY_HEF` (Hailo)।
+एनवायरनमेंट वैरिएबल (`.env.example` देखें):
+- `SECURITY_FRAME_SKIP` (डिफ़ॉल्ट 5), `SECURITY_IMGSZ` (डिफ़ॉल्ट 640),
+  `SECURITY_MODEL` (डिफ़ॉल्ट `yolov8s.pt` — अधिकतम FPS के लिए `yolov8n.pt`,
+  या अधिक recall के लिए `yolov8m.pt`)।
+- `FARM_MONITOR_CAMERA` — `/dev/videoN`, `rpi`, `rtsp://…`, `http://…`, या
+  USB कैमरा ऑटो-डिटेक्ट के लिए खाली छोड़ें।
+- `DISEASE_MODEL_PATH` / `RIPENESS_MODEL_PATH` — `Models/` के किसी भी YOLOv8 `.pt`
+  पर पॉइंट करें, कोड बदले बिना फ़सल बदल जाएगी।
+- `DISEASE_LABELS_PATH` / `RIPENESS_LABELS_PATH` — कस्टम लेबल JSON पर पॉइंट करें
+  (फ़ॉर्मेट के लिए बंडल किए `farm_monitor_*_labels.json` देखें)।
+- `PLANTWATCH_SECURITY_HEF` — Hailo बिल्ड के लिए Hailo HEF मॉडल।
 
 ---
 

@@ -71,19 +71,66 @@
 ```bash
 git clone https://github.com/darkphantom-gamer/AIgriculture.git
 cd AIgriculture
-cp .env.example .env            # その後 .env を編集（次の節を参照）
-python main.py
+
+# 1) システムパッケージ（一回のみ）
+sudo apt update
+sudo apt install -y python3-lgpio python3-pip i2c-tools mariadb-server
+sudo raspi-config nonint do_i2c 0          # I2C を有効にする
+
+# 2) Python 依存関係
+pip install -r requirements.txt --break-system-packages
+
+# 3) 設定
+cp .env.example .env                       # その後 .env を編集（管理者ユーザー/パスワード、API キー）
+cp config.example.yaml config.yaml         # その後 config.yaml を編集（メールアラート用 SMTP）
+cp wiring.example.yaml wiring.yaml         # デフォルトピンを変更した場合のみ
+
+# 4) 実行 — エントリーポイントを 1 つ選ぶ
+python main.py                              # CPU ビルド（デフォルト）
+# python main-hailo.py                      # Hailo ビルド（HAT が接続されている場合のみ）
+
+# frame-skip CPU YOLO でセキュリティカメラを有効にする:
+python main.py --security-cam /dev/video0
 ```
 
-ブラウザで `http://<pi-ip>:8000` を開きます。
+ブラウザで `http://<pi-ip>:8000` を開き、`.env` に設定した `ADMIN_USER` / `ADMIN_PASS` でログインします。
 
-> **ラップトップ／非 Pi で実行する場合も** これは動きます。GPIO や I2C はハードウェアが無い時は静かに no-op するので、ダッシュボード、AI チャット、(USB/ネットワーク) カメラはそのまま使えます。
+> **ラップトップ／非 Pi で実行する場合？** `main.py`（CPU ビルド）を使ってください。ハードウェアが無い場合、GPIO と I²C は静かに no-op になります — フルダッシュボード、AI チャット、USB / ネットワークカメラはそのまま使えます。ステップ 1 は省略して `pip install -r requirements.txt` と `python main.py` だけで OK です。
 
-> **ネイティブインストールを行う場合：**
-> ```bash
-> pip install -r requirements.txt --break-system-packages
-> python main.py
-> ```
+### データベース
+
+デフォルト設定では `localhost:3306` の MariaDB / MySQL に接続します。`sudo apt install mariadb-server` の後、`.env` に合わせてユーザーとデータベースを作成してください:
+
+```bash
+sudo mysql -e "CREATE DATABASE plantmonitor;
+               CREATE USER 'plantmonitor'@'localhost' IDENTIFIED BY 'CHANGE-ME';
+               GRANT ALL ON plantmonitor.* TO 'plantmonitor'@'localhost';
+               FLUSH PRIVILEGES;"
+```
+
+`.env` の `DB_USER`、`DB_PASS`、`DB_NAME` を合わせてください。アプリは初回起動時に自動でテーブルを作成します。
+
+### 起動時に実行する（オプション）
+
+```bash
+sudo tee /etc/systemd/system/aigriculture.service > /dev/null <<EOF
+[Unit]
+Description=AIgriculture
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/AIgriculture
+ExecStart=/usr/bin/python3 /home/pi/AIgriculture/main.py --security-cam /dev/video0
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now aigriculture
+```
 
 ---
 
@@ -313,7 +360,17 @@ python main-hailo.py [options]      # Hailo HAT ビルド
   --use-rpicam        FarmMonitor の picamera2 (libcamera) キャプチャ経路
 ```
 
-環境変数 (`.env.example` 参照): `SECURITY_FRAME_SKIP`、`SECURITY_IMGSZ`、`SECURITY_MODEL`、`FARM_MONITOR_CAMERA`、`DISEASE_MODEL_PATH`、`RIPENESS_MODEL_PATH`、`DISEASE_LABELS_PATH`、`RIPENESS_LABELS_PATH`、`PLANTWATCH_SECURITY_HEF`（Hailo）。
+環境変数 (`.env.example` 参照):
+- `SECURITY_FRAME_SKIP` (デフォルト 5)、`SECURITY_IMGSZ` (デフォルト 640)、
+  `SECURITY_MODEL` (デフォルト `yolov8s.pt` — 最大 FPS は `yolov8n.pt`、
+  より高い recall は `yolov8m.pt`)。
+- `FARM_MONITOR_CAMERA` — `/dev/videoN`、`rpi`、`rtsp://…`、`http://…`、または
+  USB カメラの自動検出には空白。
+- `DISEASE_MODEL_PATH` / `RIPENESS_MODEL_PATH` — `Models/` 内の任意の YOLOv8 `.pt`
+  を指定してコード変更なしに作物を切り替え。
+- `DISEASE_LABELS_PATH` / `RIPENESS_LABELS_PATH` — カスタムラベル JSON へのパス
+  (付属の `farm_monitor_*_labels.json` でフォーマット確認)。
+- `PLANTWATCH_SECURITY_HEF` — Hailo ビルド用の Hailo HEF モデル。
 
 ---
 
