@@ -21,6 +21,18 @@
 
 ![農場全景](../assets/small_prototype.jpeg)
 
+<div align="center">
+
+### 📱 アプリを入手 — AIgriculture Mobile <sub>(beta)</sub>
+
+[![Download the Android APK](https://img.shields.io/badge/⬇%20Download%20APK-AIgriculture%20Mobile%20beta-00cdb5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/darkphantom-gamer/AIgriculture/releases/download/app-v0.1.0/AIgriculture.apk)
+
+**スマートフォンからリアルタイムで農場を操作** — FLORA チャット、ライブカメラ、FarmMonitor、土壌湿度、灌漑、脅威 / スキャン / 水やり通知。
+
+[Download Beta →](https://github.com/darkphantom-gamer/AIgriculture/releases/download/app-v0.1.0/AIgriculture.apk)
+
+</div>
+
 ---
 
 ## できること
