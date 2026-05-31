@@ -27,11 +27,11 @@
 
 ### 📱 Скачать приложение — AIgriculture Mobile <sub>(beta)</sub>
 
-[![Download the Android APK](https://img.shields.io/badge/⬇%20Download%20APK-AIgriculture%20Mobile%20beta-00cdb5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/darkphantom-gamer/AIgriculture/releases/download/app-v0.1.0/AIgriculture.apk)
+[![Click here to download APK](https://img.shields.io/badge/⬇%20CLICK%20HERE%20TO%20DOWNLOAD%20APK-AIgriculture%20Mobile%20beta-00cdb5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/darkphantom-gamer/AIgriculture/releases/download/app-v0.1.0/AIgriculture.apk)
 
 **Управляйте фермой с телефона в реальном времени** — FLORA-чат, камеры, FarmMonitor, влажность почвы, полив и уведомления о тревогах / сканах / поливе.
 
-[Download Beta →](https://github.com/darkphantom-gamer/AIgriculture/releases/download/app-v0.1.0/AIgriculture.apk)
+[See Releases →](https://github.com/darkphantom-gamer/AIgriculture/releases/tag/app-v0.1.0)
 
 </div>
 
