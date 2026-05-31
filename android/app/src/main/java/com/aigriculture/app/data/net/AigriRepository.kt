@@ -4,9 +4,11 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
+import retrofit2.Response
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -215,14 +217,39 @@ object AigriRepository {
         ApiResult.Err(friendly(e))
     }
 
-    suspend fun uploadAvatar(bytes: ByteArray): ApiResult<String> = try {
-        val body = bytes.toRequestBody("image/jpeg".toMediaType())
-        val part = MultipartBody.Part.createFormData("file", "avatar.jpg", body)
+    suspend fun uploadAvatar(bytes: ByteArray, mime: String): ApiResult<String> = try {
+        // Send the picked image with its real MIME so the server's allow-list check is
+        // honest; the part filename's extension just mirrors it (the server always
+        // stores the shared avatar as farmer.png regardless).
+        val mediaType = mime.toMediaTypeOrNull() ?: "image/jpeg".toMediaType()
+        val ext = when {
+            mime.contains("png", true) -> "png"
+            mime.contains("webp", true) -> "webp"
+            mime.contains("gif", true) -> "gif"
+            else -> "jpg"
+        }
+        val body = bytes.toRequestBody(mediaType)
+        val part = MultipartBody.Part.createFormData("file", "avatar.$ext", body)
         val resp = Net.api.uploadAvatar(part)
-        if (resp.ok) ApiResult.Ok(resp.avatar_url ?: "")
-        else ApiResult.Err(resp.error ?: "Upload failed.")
+        val b = resp.body()
+        when {
+            resp.isSuccessful && b?.ok == true -> ApiResult.Ok(b.avatar_url ?: "")
+            else -> ApiResult.Err(
+                parseUploadError(resp) ?: b?.error ?: "Upload failed (${resp.code()}).",
+                resp.code(),
+            )
+        }
     } catch (e: Exception) {
         ApiResult.Err(friendly(e))
+    }
+
+    /** Pull the server's friendly message out of a non-2xx avatar-upload error body. */
+    private fun parseUploadError(resp: Response<UploadAvatarResp>): String? = try {
+        resp.errorBody()?.string()?.takeIf { it.isNotBlank() }?.let {
+            Net.json.decodeFromString(UploadAvatarResp.serializer(), it).error
+        }
+    } catch (_: Exception) {
+        null
     }
 
     suspend fun logout() {

@@ -2,8 +2,8 @@
 
 #  AIgriculture
 
-**Raspberry Pi के लिए ओपन-सोर्स स्मार्ट फार्म सिस्टम।**
-मिट्टी की नमी पर नज़र रखें, सिंचाई स्वचालित करें, रोगों का पता लगाएं और AI से बात करें — सब कुछ एक वेब डैशबोर्ड से।
+**Raspberry Pi का उपयोग करने वाला एक ओपन-सोर्स स्मार्ट फार्म मॉनिटरिंग सिस्टम।**
+मिट्टी की नमी पर नज़र रखें, सिंचाई स्वचालित करें, रोगों का पता लगाएं, कटाई-तैयार (पकने) का पता लगाएं, सभी अलर्ट सूचित करें, और FLORA AI से अपने फार्म से बात करें — सब कुछ एक वेब डैशबोर्ड से।
 
 [![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](../../README.md)
 [![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](../ja/README.md)
@@ -142,7 +142,8 @@ sudo systemctl enable --now aigriculture
 | `.env` में | क्या डालें | कहाँ से लें |
 |------------|-------------|-------------|
 | `ADMIN_USER` | जो भी डैशबोर्ड यूज़रनेम चाहें | (आपका चुनाव) |
-| `ADMIN_PASS` | मज़बूत पासवर्ड | (आपका चुनाव) |
+| `ADMIN_PASS` | मज़बूत पासवर्ड | (आपका चुनाव) — खाली छोड़ने पर पहली बार बूट के समय एक रैंडम पासवर्ड प्रिंट होता है |
+| `DB_USER` / `DB_PASS` / `DB_NAME` | MariaDB / MySQL क्रेडेंशियल | (आपका चुनाव — डेटाबेस सेक्शन देखें) |
 | `GROQ_API_KEY` | आपकी Groq की (सुझाव — तेज़, मुफ़्त) | https://console.groq.com |
 | `CEREBRAS_API_KEY` | आपकी Cerebras की (वैकल्पिक) | https://cloud.cerebras.ai |
 | `MISTRAL_API_KEY` | आपकी Mistral की (वैकल्पिक) | https://console.mistral.ai |
@@ -263,7 +264,7 @@ python main.py
 
 ## कैमरा विकल्प
 
-**सिक्योरिटी कैमरा** और **FarmMonitor कैमरा** (रोग / पकने स्कैन) — दोनों एक ही तरह के सोर्स लेते हैं: RPi CSI, USB, RTSP IP, या HTTP-MJPEG।
+**सिक्योरिटी कैमरा** और **FarmMonitor कैमरा** (रोग / पकने स्कैन) — दोनों एक ही तरह के सोर्स लेते हैं: RPi CSI, USB, RTSP IP, या HTTP-MJPEG। आप हर कैमरे के लिए सोर्स को एक CLI फ़्लैग या env वैरिएबल से चुनते हैं।
 
 | कैमरा | CLI फ़्लैग | Env वैरिएबल |
 |------|-----------|------------|
@@ -291,9 +292,13 @@ python main.py --farm-cam   rtsp://user:pass@192.168.1.10/live
 # HTTP-MJPEG IP कैमरा (एक ही URL दोनों कैमरों के लिए — हार्डवेयर के बिना टेस्ट करने के लिए)
 python main.py --security-cam http://camera.example/cam.cgi \
                --farm-cam   http://camera.example/cam.cgi
+
+# मिक्स एंड मैच: USB सिक्योरिटी कैम + IP FarmMonitor कैम (जैसे ग्रीनहाउस कैम)
+python main.py --security-cam /dev/video0 \
+               --farm-cam   rtsp://greenhouse:5554/live
 ```
 
-दोनों फ़्लैग्स ये सोर्स लेते हैं: `rpi` / `csi` (RPi CSI), `/dev/videoN` (USB), इंडेक्स नंबर, `rtsp://…` (IP RTSP), `http://…` (IP MJPEG)। कोड बदलने की ज़रूरत नहीं — फ़्लैग बदलिए।
+**दोनों** फ़्लैग्स ये सोर्स लेते हैं: `rpi` / `csi` (OpenCV के ज़रिए RPi CSI), `/dev/videoN` (USB), एक इंटीजर (कैमरा इंडेक्स), `rtsp://…` (IP RTSP), `http://…` (IP MJPEG)। नए कैमरों के लिए कोड बदलने की ज़रूरत नहीं — बस फ़्लैग या env बदलिए।
 
 बिना किसी कैमरे के भी डैशबोर्ड, FLORA, सिंचाई, सेंसर एक्सपैंशन टेस्ट कर सकते हैं:
 
@@ -344,6 +349,8 @@ python main-hailo.py --security-cam /dev/video0
 ```
 
 `main-hailo.py` और `main.py` का डैशबोर्ड, लॉगिन, FLORA, FarmMonitor, सिंचाई, Meshtastic, स्टोरेज, ईमेल अलर्ट — सब 100% एक ही है। फ़र्क़ बस इतना है कि सिक्योरिटी कैमरा इन्फरेंस CPU YOLO की जगह Hailo HEF पर चलती है — आमतौर पर ~10× तेज़।
+
+अगर HAT असल में लगा नहीं है, तो `main-hailo.py` एक चेतावनी लॉग करता है और बाकी सब कुछ चलता रहता है। आप कॉन्फ़िग या डेटाबेस को छुए बिना कभी भी दोनों स्क्रिप्ट्स के बीच स्विच कर सकते हैं।
 
 ---
 

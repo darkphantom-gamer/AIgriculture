@@ -226,20 +226,6 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
                 }
             }
 
-            item {
-                AigriCard(Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Test siren", color = AigriText, fontWeight = FontWeight.W700, fontSize = 15.sp)
-                            Spacer(Modifier.height(4.dp))
-                            Text("Sends three short beeps to the buzzer.", color = AigriMuted, fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        PrimaryButton("Beep", vm::testSiren, loading = ui.sirenBusy)
-                    }
-                }
-            }
-
             item { SectionLabel("Active alerts") }
             if (ui.alerts.isEmpty()) {
                 item {

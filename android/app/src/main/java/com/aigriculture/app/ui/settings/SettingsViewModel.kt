@@ -66,10 +66,18 @@ class SettingsViewModel : ViewModel() {
         }
     }
 
-    fun uploadAvatar(bytes: ByteArray) {
+    fun uploadAvatar(bytes: ByteArray, mime: String) {
+        if (bytes.isEmpty()) {
+            _ui.update { it.copy(toast = "Couldn't read that image — try another.") }
+            return
+        }
+        if (bytes.size > 8 * 1024 * 1024) {
+            _ui.update { it.copy(toast = "That image is over 8 MB — please pick a smaller one.") }
+            return
+        }
         _ui.update { it.copy(avatarUploading = true) }
         viewModelScope.launch {
-            when (val r = AigriRepository.uploadAvatar(bytes)) {
+            when (val r = AigriRepository.uploadAvatar(bytes, mime)) {
                 is ApiResult.Ok -> {
                     val updated = (AigriRepository.me() as? ApiResult.Ok)?.value
                     _ui.update { it.copy(avatarUploading = false, me = updated ?: it.me, toast = "Profile photo updated.") }

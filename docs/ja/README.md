@@ -2,8 +2,8 @@
 
 #  AIgriculture
 
-**Raspberry Pi 用のオープンソース・スマートファームシステム。**
-土壌湿度の監視、灌漑の自動化、病害検出、AI とのチャット — すべて一つの Web ダッシュボードから。
+**Raspberry Pi 用のオープンソース・スマートファーム監視システム。**
+土壌湿度の監視、灌漑の自動化、病害検出、収穫適期の検出、全アラートの通知、そして FLORA AI を使った農場とのチャット — すべて一つの Web ダッシュボードから。
 
 [![English](https://img.shields.io/badge/lang-English-blue?style=for-the-badge)](../../README.md)
 [![日本語](https://img.shields.io/badge/lang-日本語-red?style=for-the-badge)](README.md)
@@ -142,7 +142,8 @@ sudo systemctl enable --now aigriculture
 | `.env` のキー | 入れるもの | 取得先 |
 |---------------|------------|--------|
 | `ADMIN_USER` | 使いたいダッシュボードユーザー名 |（自分で決める） |
-| `ADMIN_PASS` | 強力なパスワード |（自分で決める）|
+| `ADMIN_PASS` | 強力なパスワード |（自分で決める） — 空のままにすると初回起動時にランダムなものが表示されます |
+| `DB_USER` / `DB_PASS` / `DB_NAME` | MariaDB / MySQL の認証情報 |（自分で決める — データベース節を参照） |
 | `GROQ_API_KEY` | Groq の API キー（推奨、高速・無料） | https://console.groq.com |
 | `CEREBRAS_API_KEY` | Cerebras の API キー（任意） | https://cloud.cerebras.ai |
 | `MISTRAL_API_KEY` | Mistral の API キー（任意） | https://console.mistral.ai |
@@ -263,7 +264,7 @@ python main.py
 
 ## カメラ設定
 
-**セキュリティカメラ** と **FarmMonitor カメラ** (病害 / 熟度スキャン) は同じソース形式を受け付けます: RPi CSI、USB、RTSP IP、HTTP-MJPEG。
+**セキュリティカメラ** と **FarmMonitor カメラ** (病害 / 熟度スキャン) は同じソース形式を受け付けます: RPi CSI、USB、RTSP IP、HTTP-MJPEG。ソースはカメラごとに CLI フラグまたは環境変数で選択します。
 
 | カメラ | CLI フラグ | 環境変数 |
 |--------|-----------|---------|
@@ -291,9 +292,13 @@ python main.py --farm-cam   rtsp://user:pass@192.168.1.10/live
 # HTTP-MJPEG IP カメラ（同じ URL を両方のカメラに使えるのでハードウェア無しでもテスト可能）
 python main.py --security-cam http://camera.example/cam.cgi \
                --farm-cam   http://camera.example/cam.cgi
+
+# 混在も可能: USB セキュリティカメラ + IP FarmMonitor カメラ（例: 温室カメラ）
+python main.py --security-cam /dev/video0 \
+               --farm-cam   rtsp://greenhouse:5554/live
 ```
 
-両方のフラグが受け付ける形式: `rpi` / `csi`（RPi CSI）、`/dev/videoN`（USB）、整数（カメラ インデックス）、`rtsp://…`（IP RTSP）、`http://…`（IP MJPEG）。コード編集は不要 — フラグを変えるだけです。
+両方のフラグが受け付ける形式: `rpi` / `csi`（OpenCV 経由の RPi CSI）、`/dev/videoN`（USB）、整数（カメラ インデックス）、`rtsp://…`（IP RTSP）、`http://…`（IP MJPEG）。コード編集は不要 — フラグを変えるだけです。
 
 カメラ無しでもダッシュボード、FLORA、灌漑ロジック、センサー拡張をテストできます:
 
@@ -344,6 +349,8 @@ python main-hailo.py --security-cam /dev/video0
 ```
 
 `main-hailo.py` と `main.py` のダッシュボード、ログイン、FLORA、FarmMonitor、灌漑、Meshtastic、ストレージ、メールアラートのコードは 100% 共通です。違いはセキュリティカメラ推論が CPU YOLO か Hailo HEF かだけ — 通常 ~10× 高速です。
+
+HAT が実際には接続されていない場合、`main-hailo.py` は警告をログに出力し、それ以外はすべて動作し続けます。設定ファイルやデータベースに触れることなく、いつでも 2 つのスクリプトを切り替えられます。
 
 ---
 

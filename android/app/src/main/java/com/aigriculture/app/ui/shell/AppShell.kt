@@ -17,14 +17,17 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aigriculture.app.notify.AlertMonitor
 import com.aigriculture.app.ui.analytics.AnalyticsScreen
 import com.aigriculture.app.ui.camera.LiveCameraScreen
 import com.aigriculture.app.ui.flora.FloraScreen
@@ -50,6 +53,14 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 fun AppShell(onLoggedOut: () -> Unit) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     val tabs = Tab.values()
+    val context = LocalContext.current
+
+    // Watch the farm server for the whole logged-in session and raise phone
+    // notifications for threats / scans / irrigation. Stops on logout (dispose).
+    DisposableEffect(Unit) {
+        AlertMonitor.start(context)
+        onDispose { AlertMonitor.stop() }
+    }
 
     Scaffold(
         containerColor = AigriBg,

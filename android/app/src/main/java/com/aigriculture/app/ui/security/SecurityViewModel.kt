@@ -18,10 +18,9 @@ data class SecurityUi(
     val error: String? = null,
     val toast: String? = null,
     val guardBusy: Boolean = false,
-    val sirenBusy: Boolean = false,
 )
 
-/** Security tab — guard arm/disarm, siren test, and live threat alerts. */
+/** Security tab — guard arm/disarm and live threat alerts. */
 class SecurityViewModel : ViewModel() {
 
     private val _ui = MutableStateFlow(SecurityUi())
@@ -54,17 +53,6 @@ class SecurityViewModel : ViewModel() {
                 is ApiResult.Ok -> _ui.update { it.copy(armed = r.value) }
                 is ApiResult.Err -> _ui.update { it.copy(toast = r.message) }
             }
-        }
-    }
-
-    fun testSiren() {
-        _ui.update { it.copy(sirenBusy = true) }
-        viewModelScope.launch {
-            val msg = when (val r = AigriRepository.testSiren()) {
-                is ApiResult.Ok -> r.value
-                is ApiResult.Err -> r.message
-            }
-            _ui.update { it.copy(sirenBusy = false, toast = msg) }
         }
     }
 

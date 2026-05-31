@@ -249,7 +249,12 @@ def _set_siren(on: bool):
     """Flip the siren flag from the per-frame detection hook (non-blocking)."""
     global _siren_on
     with _siren_lock:
+        was = _siren_on
         _siren_on = bool(on)
+    # Rising edge: a fresh threat just appeared. Play the alarm clip once, alongside
+    # the GPIO buzzer, so the farm is alerted even with no buzzer wired in.
+    if on and not was:
+        _play_threat_sound()
 
 def _siren_loop():
     """Sound the fixed warning beep while the siren flag is set. Owns its own
@@ -274,6 +279,49 @@ def _siren_loop():
             except Exception:
                 pass
             time.sleep(0.5)
+
+# ── Threat alarm clip (assets/threat.mp3) ───────────────────────────────────────
+_threat_audio_lock = threading.Lock()
+_threat_audio_last = 0.0
+_AUDIO_PLAYERS = (
+    ["mpg123", "-q"],
+    ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet"],
+    ["cvlc", "--play-and-exit", "--intf", "dummy"],
+    ["mpv", "--really-quiet"],
+)
+
+def _play_threat_sound():
+    """Play assets/threat.mp3 once when the security camera flags a threat.
+
+    Non-blocking and rate-limited (5s) so rapid frames never stack overlapping
+    clips. Honors the same master mute as the buzzer. Tries the common Pi audio
+    players in turn and silently no-ops if none are installed or the file is
+    missing — the GPIO buzzer still sounds in that case."""
+    global _threat_audio_last
+    if not siren_enabled:
+        return
+    path = _asset_dir() / "threat.mp3"
+    if not path.exists():
+        return
+    now = time.time()
+    with _threat_audio_lock:
+        if now - _threat_audio_last < 5.0:
+            return
+        _threat_audio_last = now
+
+    def _run():
+        for base in _AUDIO_PLAYERS:
+            try:
+                subprocess.run(base + [str(path)], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return
+            except FileNotFoundError:
+                continue          # player not installed — try the next one
+            except Exception:
+                return            # player ran but failed (e.g. no audio out) — give up quietly
+        print("[SECURITY] threat.mp3 not played — install an audio player: sudo apt install mpg123")
+
+    threading.Thread(target=_run, daemon=True).start()
 
 # ── ADS1115 / smbus2 ───────────────────────────────────────────────────────────
 _M_OV         = _WIRING_OVERRIDES.get("moisture") or {}
@@ -2909,18 +2957,23 @@ async def api_upload_avatar(file: UploadFile, _user: str = Depends(require_auth)
     if file.content_type not in _AVATAR_MIME_EXT:
         return JSONResponse({"ok": False, "error": "Unsupported file type. Use JPEG, PNG, or WebP."}, status_code=400)
     data = await file.read()
+    if not data:
+        return JSONResponse({"ok": False, "error": "The selected file was empty."}, status_code=400)
     if len(data) > 8 * 1024 * 1024:
         return JSONResponse({"ok": False, "error": "File too large (max 8 MB)."}, status_code=400)
-    ext = _AVATAR_MIME_EXT[file.content_type]
     asset_dir = _asset_dir()
-    # Remove all existing farmer.* variants so old hashed URLs become invalid
+    # The farm avatar is one shared asset always named farmer.png, so the dashboard's
+    # hardcoded <img src="/img/farmer.png"> references and the _asset_url("farmer.png")
+    # default fallback keep resolving after every change. Image decoders sniff the real
+    # bytes, so a JPEG/WebP/GIF written under .png still renders everywhere. Clear any
+    # stray non-png farmer.* left by older builds first, then overwrite farmer.png.
     for old in asset_dir.glob("farmer.*"):
-        if old.is_file() and old.suffix.lower() in _ASSET_MEDIA:
+        if old.is_file() and old.suffix.lower() in _ASSET_MEDIA and old.name != "farmer.png":
             old.unlink(missing_ok=True)
-    dest = asset_dir / f"farmer{ext}"
+    dest = asset_dir / "farmer.png"
     dest.write_bytes(data)
     _ASSET_HASH_CACHE.clear()
-    new_url = _asset_url(f"farmer{ext}")
+    new_url = _asset_url("farmer.png")
     if MYSQL_AVAILABLE:
         try:
             conn = _db_conn()

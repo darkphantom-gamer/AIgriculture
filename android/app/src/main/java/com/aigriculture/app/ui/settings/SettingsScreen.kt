@@ -92,7 +92,8 @@ fun SettingsScreen(
     val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            if (bytes != null) vm.uploadAvatar(bytes)
+            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+            if (bytes != null) vm.uploadAvatar(bytes, mime)
         }
     }
 

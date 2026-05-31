@@ -106,5 +106,5 @@ interface ApiService {
 
     @Multipart
     @POST("api/upload_avatar")
-    suspend fun uploadAvatar(@Part file: MultipartBody.Part): UploadAvatarResp
+    suspend fun uploadAvatar(@Part file: MultipartBody.Part): Response<UploadAvatarResp>
 }
