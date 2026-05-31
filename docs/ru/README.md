@@ -21,6 +21,8 @@
 
 ![Обзор фермы](../assets/small_prototype.jpeg)
 
+---
+
 <div align="center">
 
 ### 📱 Скачать приложение — AIgriculture Mobile <sub>(beta)</sub>

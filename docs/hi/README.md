@@ -21,6 +21,8 @@
 
 ![फार्म दृश्य](../assets/small_prototype.jpeg)
 
+---
+
 <div align="center">
 
 ### 📱 ऐप पाएं — AIgriculture Mobile <sub>(beta)</sub>

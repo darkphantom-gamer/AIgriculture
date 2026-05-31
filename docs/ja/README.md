@@ -21,6 +21,8 @@
 
 ![農場全景](../assets/small_prototype.jpeg)
 
+---
+
 <div align="center">
 
 ### 📱 アプリを入手 — AIgriculture Mobile <sub>(beta)</sub>

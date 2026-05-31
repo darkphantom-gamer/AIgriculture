@@ -21,6 +21,8 @@
 
 ![农场总览](../assets/small_prototype.jpeg)
 
+---
+
 <div align="center">
 
 ### 📱 获取应用 — AIgriculture Mobile <sub>(beta)</sub>

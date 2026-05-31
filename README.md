@@ -21,6 +21,8 @@ Monitor soil moisture, automate irrigation, detect disease,detect harvest ready,
 
 ![Farm overview](docs/assets/small_prototype.jpeg)
 
+---
+
 <div align="center">
 
 ### 📱 Get the app — AIgriculture Mobile <sub>(beta)</sub>
