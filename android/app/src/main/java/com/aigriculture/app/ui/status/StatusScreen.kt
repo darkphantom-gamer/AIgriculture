@@ -43,7 +43,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aigriculture.app.data.net.StateMsg
 import com.aigriculture.app.ui.common.AigriCard
 import com.aigriculture.app.ui.common.ErrorBanner
+import com.aigriculture.app.ui.common.GaugeValue
+import com.aigriculture.app.ui.common.Pill
 import com.aigriculture.app.ui.common.PrimaryButton
+import com.aigriculture.app.ui.common.SectionLabel
 import com.aigriculture.app.ui.theme.AigriAccent
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriBlue
@@ -104,6 +107,7 @@ fun StatusScreen(vm: StatusViewModel = viewModel()) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { OverviewCard(state) }
+                item { GlobalMoistureCard(state) }
                 item { AutoCard(state, vm::toggleAuto) }
                 item {
                     Box(
@@ -119,6 +123,7 @@ fun StatusScreen(vm: StatusViewModel = viewModel()) {
                     }
                 }
                 val plants = state.active_plants
+                item { SectionLabel("Plants", Modifier.padding(top = 4.dp)) }
                 if (plants.isEmpty()) {
                     item {
                         AigriCard(Modifier.fillMaxWidth()) {
@@ -290,19 +295,60 @@ private fun OverviewCard(state: StateMsg) {
     AigriCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).background(if (alertsN > 0) AigriDanger else AigriOk, CircleShape))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (alertsN > 0) "$alertsN active alert${if (alertsN > 1) "s" else ""}" else "All clear",
-                color = AigriText, fontWeight = FontWeight.W700, fontSize = 15.sp,
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                SectionLabel("System status")
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    if (alertsN > 0) "$alertsN active alert${if (alertsN > 1) "s" else ""}" else "All clear",
+                    color = AigriText, fontWeight = FontWeight.W800, fontSize = 18.sp,
+                )
+            }
+            Pill(
+                if (away) "Guard armed" else "At farm",
+                dotColor = if (away) AigriWarn else AigriOk,
+                fg = AigriText,
             )
-            Spacer(Modifier.weight(1f))
-            Text(if (away) "Guard armed" else "At farm", color = AigriMuted, fontSize = 11.sp)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MiniStat("Avg moist", avg?.let { "$it%" } ?: "—", colorFor(avg?.toDouble()), Modifier.weight(1f))
             MiniStat("Sensors", "$online/$total", AigriAccent, Modifier.weight(1f))
             MiniStat("Pumps on", "$pumpsOn", if (pumpsOn > 0) AigriBlue else AigriMuted, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun GlobalMoistureCard(state: StateMsg) {
+    val avg = avgMoisture(state)
+    val progress = (avg ?: 0) / 100f
+    AigriCard(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SectionLabel("Global moisture level")
+            Spacer(Modifier.height(16.dp))
+            GaugeValue(
+                progress = progress,
+                valueText = avg?.let { "$it%" } ?: "—",
+                caption = "avg moisture",
+                diameter = 184.dp,
+                stroke = 16.dp,
+                valueSize = 36,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when {
+                    avg == null -> "Waiting for sensor readings"
+                    avg < 45 -> "Drier than target — watering may trigger"
+                    avg <= 65 -> "In the healthy band"
+                    else -> "Well watered"
+                },
+                color = AigriMuted,
+                fontSize = 12.sp,
+            )
         }
     }
 }

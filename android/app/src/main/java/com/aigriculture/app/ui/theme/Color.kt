@@ -26,3 +26,16 @@ val AigriOk = Color(0xFF22C55E)
 
 // Readable ink to sit on the bright accent (buttons, pills).
 val AigriOnAccent = Color(0xFF04222A)
+
+// ── Stitch design-system extensions (same family, richer ramp) ───────────────
+// The Stitch mock confirmed a 3-level background ramp and a two-tone accent:
+//   AigriBgDeep  = deepest page base / gradient floor (#07151E)
+//   AigriBg      = page surface (#0D1B24, above)         AigriBg2 = alt (#0A1A24)
+//   AigriCard    = card surface (#112233, above)
+// Accent is now two-tone: AigriAccent (#00CDB5) fills buttons/pills, while the
+// brighter AigriAccentBright (#45EAD0) is used for accent TEXT, icons and glows;
+// AigriAccentGlow (#32DEC5) seeds soft radial halos behind logos/avatars.
+val AigriBgDeep = Color(0xFF07151E)
+val AigriAccentBright = Color(0xFF45EAD0)
+val AigriAccentGlow = Color(0xFF32DEC5)
+val AigriAccentSoft = Color(0xFF72D8C3)

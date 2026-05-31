@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -26,17 +29,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aigriculture.app.data.net.AlertDetail
+import com.aigriculture.app.ui.common.AccentCard
 import com.aigriculture.app.ui.common.AigriCard
 import com.aigriculture.app.ui.common.ErrorBanner
 import com.aigriculture.app.ui.common.MjpegView
+import com.aigriculture.app.ui.common.Pill
 import com.aigriculture.app.ui.common.PrimaryButton
 import com.aigriculture.app.ui.common.SectionLabel
 import com.aigriculture.app.ui.theme.AigriAccent
+import com.aigriculture.app.ui.theme.AigriAccentBright
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriBorder
 import com.aigriculture.app.ui.theme.AigriDanger
@@ -44,8 +52,27 @@ import com.aigriculture.app.ui.theme.AigriMuted
 import com.aigriculture.app.ui.theme.AigriOk
 import com.aigriculture.app.ui.theme.AigriSidebar
 import com.aigriculture.app.ui.theme.AigriText
+import com.aigriculture.app.ui.theme.AigriWarn
+import com.aigriculture.app.ui.theme.MonoFontFamily
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
+/** Map an AlertDetail.level string to its severity color (high>medium>low). */
+private fun levelColor(level: String): Color = when (level.lowercase()) {
+    "high" -> AigriDanger
+    "medium" -> AigriWarn
+    else -> AigriOk
+}
+
+/** Numeric rank so we can pick the worst level across all active threats. */
+private fun levelRank(level: String): Int = when (level.lowercase()) {
+    "high" -> 3
+    "medium" -> 2
+    "low" -> 1
+    else -> 0
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
@@ -60,6 +87,11 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
     LaunchedEffect(ui.toast) {
         if (ui.toast != null) { delay(3500); vm.clearToast() }
     }
+
+    // Overall threat is the worst level present in the real detail list; when the
+    // list is empty there's nothing to escalate, so we stay in the calm state.
+    val worst: AlertDetail? = ui.detail.maxByOrNull { levelRank(it.level) }
+    val overallColor = if (worst == null) AigriOk else levelColor(worst.level)
 
     Column(modifier = Modifier.fillMaxSize().background(AigriBg)) {
         if (showHeader) {
@@ -90,13 +122,74 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
             item {
                 AigriCard(Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     Column {
-                        MjpegView("stream", Modifier.fillMaxWidth().height(320.dp))
+                        Box {
+                            MjpegView("stream", Modifier.fillMaxWidth().height(320.dp))
+                            // "REC" pill only when the guard is actually armed (away).
+                            if (ui.armed) {
+                                Pill(
+                                    "REC",
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(10.dp),
+                                    dotColor = AigriDanger,
+                                    bg = AigriBg.copy(alpha = 0.7f),
+                                    fg = AigriText,
+                                    border = AigriBorder,
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Live security camera", color = AigriMuted, fontSize = 12.sp)
+                            Spacer(Modifier.weight(1f))
+                            Pill(
+                                if (ui.armed) "Armed" else "At farm",
+                                dotColor = if (ui.armed) AigriDanger else AigriOk,
+                                fg = AigriMuted,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Threat panel, derived entirely from ui.detail ──────────────────
+            item {
+                AccentCard(Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            SectionLabel("Threat status")
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                if (worst == null) "All clear"
+                                else worst.level.replaceFirstChar { it.uppercase() },
+                                color = if (worst == null) AigriAccentBright else overallColor,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 22.sp,
+                            )
+                        }
+                        Box(Modifier.size(11.dp).background(overallColor, CircleShape))
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    if (ui.detail.isEmpty()) {
                         Text(
-                            "Live security camera",
+                            "No active threats detected.",
                             color = AigriMuted,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(12.dp),
+                            fontSize = 13.sp,
                         )
+                    } else {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            ui.detail.forEach { d ->
+                                ThreatPill(d)
+                            }
+                        }
                     }
                 }
             }
@@ -151,7 +244,11 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
             if (ui.alerts.isEmpty()) {
                 item {
                     AigriCard(Modifier.fillMaxWidth()) {
-                        Text("All clear — no active alerts.", color = AigriMuted, fontSize = 13.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(7.dp).background(AigriOk, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Text("All clear — no active alerts.", color = AigriMuted, fontSize = 13.sp)
+                        }
                     }
                 }
             } else {
@@ -166,5 +263,37 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
                 }
             }
         }
+    }
+}
+
+/**
+ * One active threat rendered as a tinted pill: real emoji icon + name from the
+ * model, with conf (0..1) shown as a whole percentage in the mono face. Color
+ * keys off the threat's own level so high/medium/low read at a glance.
+ */
+@Composable
+private fun ThreatPill(d: AlertDetail) {
+    val color = levelColor(d.level)
+    val pct = (d.conf.coerceIn(0.0, 1.0) * 100).roundToInt()
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (d.icon.isNotEmpty()) Text(d.icon, fontSize = 13.sp)
+        if (d.name.isNotEmpty()) {
+            Text(d.name, color = color, fontSize = 12.sp, fontWeight = FontWeight.W700, maxLines = 1)
+        }
+        Text(
+            "$pct%",
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.W700,
+            fontFamily = MonoFontFamily,
+            maxLines = 1,
+        )
     }
 }

@@ -38,11 +38,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aigriculture.app.data.net.IrrEvent
 import com.aigriculture.app.data.net.StorageMeta
+import com.aigriculture.app.ui.common.AccentCard
 import com.aigriculture.app.ui.common.AigriCard
+import com.aigriculture.app.ui.common.GaugeValue
+import com.aigriculture.app.ui.common.Pill
 import com.aigriculture.app.ui.common.PrimaryButton
 import com.aigriculture.app.ui.common.SectionLabel
 import com.aigriculture.app.ui.common.SegmentedSelector
+import com.aigriculture.app.ui.common.StatTile
 import com.aigriculture.app.ui.theme.AigriAccent
+import com.aigriculture.app.ui.theme.AigriAccentBright
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriBlue
 import com.aigriculture.app.ui.theme.AigriBorder
@@ -52,6 +57,7 @@ import com.aigriculture.app.ui.theme.AigriOk
 import com.aigriculture.app.ui.theme.AigriSidebar
 import com.aigriculture.app.ui.theme.AigriText
 import com.aigriculture.app.ui.theme.AigriWarn
+import com.aigriculture.app.ui.theme.MonoFontFamily
 import kotlin.math.roundToInt
 
 @Composable
@@ -100,14 +106,26 @@ fun AnalyticsScreen(vm: AnalyticsViewModel = viewModel()) {
                 ) {
                     when (tab) {
                         0 -> {
+                            item { MoistureHeroTile(d?.moisture_current ?: emptyMap()) }
+                            item { IrrigationPriorityRow(d?.moisture_current ?: emptyMap()) }
                             item { MoistureCard(d?.moisture_current ?: emptyMap()) }
                             item { IrrigationCard(d?.irr_history ?: emptyList()) }
                         }
                         1 -> {
                             item {
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Tile("Security events", d?.storage_summary?.get("security") ?: 0, AigriBlue, Modifier.weight(1f))
-                                    Tile("Today's detections", (d?.hourly_detections?.values?.sum()) ?: 0, AigriWarn, Modifier.weight(1f))
+                                    StatTile(
+                                        "${d?.storage_summary?.get("security") ?: 0}",
+                                        "Security events",
+                                        Modifier.weight(1f),
+                                        accent = AigriBlue,
+                                    )
+                                    StatTile(
+                                        "${(d?.hourly_detections?.values?.sum()) ?: 0}",
+                                        "Today's detections",
+                                        Modifier.weight(1f),
+                                        accent = AigriWarn,
+                                    )
                                 }
                             }
                             item { HourlyCard(d?.hourly_detections ?: emptyMap()) }
@@ -119,14 +137,97 @@ fun AnalyticsScreen(vm: AnalyticsViewModel = viewModel()) {
                             val harvest = (ss["ripeness"] ?: 0) + (ss["disease_and_ripeness"] ?: 0)
                             item {
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Tile("Health alerts", disease, AigriDanger, Modifier.weight(1f))
-                                    Tile("Harvest ready", harvest, AigriOk, Modifier.weight(1f))
+                                    StatTile("$disease", "Health alerts", Modifier.weight(1f), accent = AigriDanger)
+                                    StatTile("$harvest", "Harvest ready", Modifier.weight(1f), accent = AigriOk)
                                 }
                             }
                             item { LatestScanCard(d?.latest_farm_event) }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Stitch moisture hero: a [GaugeValue] showing the average of the live
+ * [moisture_current] readings (nulls skipped). No history/delta is shown —
+ * AnalyticsResp deliberately omits moisture_history, so nothing is fabricated.
+ */
+@Composable
+private fun MoistureHeroTile(moisture: Map<String, Double?>) {
+    val live = moisture.values.filterNotNull()
+    AccentCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                SectionLabel("Average soil moisture")
+                Spacer(Modifier.height(8.dp))
+                if (live.isEmpty()) {
+                    Text("No live moisture readings.", color = AigriMuted, fontSize = 13.sp)
+                } else {
+                    Pill(
+                        text = "${live.size} sensor(s) live",
+                        dotColor = AigriAccentBright,
+                        fg = AigriAccentBright,
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            val avg = if (live.isEmpty()) 0.0 else live.average()
+            GaugeValue(
+                progress = (avg / 100.0).coerceIn(0.0, 1.0).toFloat(),
+                valueText = if (live.isEmpty()) "--" else "${avg.roundToInt()}%",
+                caption = "average",
+                diameter = 120.dp,
+                stroke = 12.dp,
+                valueSize = 26,
+            )
+        }
+    }
+}
+
+/**
+ * Ranks the real plants by lowest live moisture so the driest soil floats to the
+ * top of the irrigation queue. Built only from [moisture_current]; the
+ * AnalyticsViewModel exposes no pump route, so no pump call is invented here.
+ */
+@Composable
+private fun IrrigationPriorityRow(moisture: Map<String, Double?>) {
+    AigriCard(Modifier.fillMaxWidth()) {
+        SectionLabel("Irrigation priority")
+        Spacer(Modifier.height(10.dp))
+        val ranked = moisture.entries.filter { it.value != null }
+            .sortedBy { it.value }
+        if (ranked.isEmpty()) {
+            Text("No live moisture readings.", color = AigriMuted, fontSize = 13.sp)
+            return@AigriCard
+        }
+        ranked.forEachIndexed { i, (plant, v) ->
+            val pct = v ?: 0.0
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 5.dp),
+            ) {
+                Text(
+                    "${i + 1}",
+                    color = AigriMuted,
+                    fontFamily = MonoFontFamily,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 12.sp,
+                    modifier = Modifier.width(20.dp),
+                )
+                Box(Modifier.size(8.dp).background(moistColor(pct), CircleShape))
+                Spacer(Modifier.width(10.dp))
+                Text("Plant ${plant.uppercase()}", color = AigriText, fontSize = 13.sp)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${pct.roundToInt()}%",
+                    color = moistColor(pct),
+                    fontFamily = MonoFontFamily,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 13.sp,
+                )
             }
         }
     }
@@ -156,7 +257,13 @@ private fun MoistureCard(moisture: Map<String, Double?>) {
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                Text("${pct.roundToInt()}%", color = AigriText, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                Text(
+                    "${pct.roundToInt()}%",
+                    color = AigriText,
+                    fontFamily = MonoFontFamily,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 12.sp,
+                )
             }
         }
     }
@@ -173,15 +280,6 @@ private fun LatestScanCard(latest: StorageMeta?) {
             Spacer(Modifier.height(4.dp))
             Text(msg, color = AigriMuted, fontSize = 12.sp)
         }
-    }
-}
-
-@Composable
-private fun Tile(label: String, value: Int, accent: Color, modifier: Modifier = Modifier) {
-    AigriCard(modifier) {
-        Text("$value", color = accent, fontWeight = FontWeight.W800, fontSize = 26.sp)
-        Spacer(Modifier.height(2.dp))
-        Text(label.uppercase(), color = AigriMuted, fontSize = 9.sp, fontWeight = FontWeight.W600)
     }
 }
 
@@ -205,7 +303,13 @@ private fun SpeciesCard(species: Map<String, Int>) {
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                Text("$count", color = AigriText, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                Text(
+                    "$count",
+                    color = AigriText,
+                    fontFamily = MonoFontFamily,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 12.sp,
+                )
             }
         }
     }
@@ -233,9 +337,9 @@ private fun HourlyCard(hourly: Map<String, Int>) {
         }
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("00", color = AigriMuted, fontSize = 9.sp)
-            Text("12", color = AigriMuted, fontSize = 9.sp)
-            Text("23", color = AigriMuted, fontSize = 9.sp)
+            Text("00", color = AigriMuted, fontFamily = MonoFontFamily, fontSize = 9.sp)
+            Text("12", color = AigriMuted, fontFamily = MonoFontFamily, fontSize = 9.sp)
+            Text("23", color = AigriMuted, fontFamily = MonoFontFamily, fontSize = 9.sp)
         }
     }
 }
@@ -255,7 +359,7 @@ private fun IrrigationCard(events: List<IrrEvent>) {
                 Spacer(Modifier.width(8.dp))
                 Text("Plant ${e.plant.uppercase()}", color = AigriText, fontSize = 13.sp)
                 Spacer(Modifier.weight(1f))
-                Text(relTime(e.t), color = AigriMuted, fontSize = 11.sp)
+                Text(relTime(e.t), color = AigriMuted, fontFamily = MonoFontFamily, fontSize = 11.sp)
             }
         }
     }

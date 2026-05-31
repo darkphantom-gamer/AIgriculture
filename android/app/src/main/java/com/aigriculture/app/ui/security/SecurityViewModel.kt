@@ -3,6 +3,7 @@ package com.aigriculture.app.ui.security
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aigriculture.app.data.net.AigriRepository
+import com.aigriculture.app.data.net.AlertDetail
 import com.aigriculture.app.data.net.ApiResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.launch
 data class SecurityUi(
     val armed: Boolean = false,           // guard ON == you're away
     val alerts: List<String> = emptyList(),
+    val detail: List<AlertDetail> = emptyList(),
     val loaded: Boolean = false,
     val error: String? = null,
     val toast: String? = null,
@@ -30,7 +32,13 @@ class SecurityViewModel : ViewModel() {
         viewModelScope.launch {
             when (val r = AigriRepository.alerts()) {
                 is ApiResult.Ok -> _ui.update {
-                    it.copy(armed = !r.value.at_farm, alerts = r.value.alerts, loaded = true, error = null)
+                    it.copy(
+                        armed = !r.value.at_farm,
+                        alerts = r.value.alerts,
+                        detail = r.value.detail,
+                        loaded = true,
+                        error = null,
+                    )
                 }
                 is ApiResult.Err -> _ui.update { it.copy(error = r.message) }
             }

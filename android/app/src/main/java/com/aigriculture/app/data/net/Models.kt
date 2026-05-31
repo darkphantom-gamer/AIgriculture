@@ -156,10 +156,21 @@ data class FarmStatus(
     val ripeness_frames: Int? = null,
 )
 
+// One active threat from /alerts "detail" (built in main.py from YOLO labels):
+//   {name, conf, level, icon}. level ∈ {low, medium, high}; icon is an emoji.
+@Serializable
+data class AlertDetail(
+    val name: String = "",
+    val conf: Double = 0.0,
+    val level: String = "low",
+    val icon: String = "",
+)
+
 @Serializable
 data class AlertsResp(
     val alerts: List<String> = emptyList(),
     val at_farm: Boolean = false,
+    val detail: List<AlertDetail> = emptyList(),
 )
 
 @Serializable

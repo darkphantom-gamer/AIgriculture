@@ -1,7 +1,9 @@
 package com.aigriculture.app.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,10 +11,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AlternateEmail
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -22,24 +37,39 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.aigriculture.app.data.net.Net
+import com.aigriculture.app.ui.common.AccentCard
 import com.aigriculture.app.ui.common.AigriCard
 import com.aigriculture.app.ui.common.AigriTextField
 import com.aigriculture.app.ui.common.ErrorBanner
+import com.aigriculture.app.ui.common.Pill
 import com.aigriculture.app.ui.common.PrimaryButton
 import com.aigriculture.app.ui.common.SectionLabel
 import com.aigriculture.app.ui.theme.AigriAccent
+import com.aigriculture.app.ui.theme.AigriAccentBright
+import com.aigriculture.app.ui.theme.AigriAccentGlow
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriBorder
+import com.aigriculture.app.ui.theme.AigriDanger
 import com.aigriculture.app.ui.theme.AigriMuted
+import com.aigriculture.app.ui.theme.AigriOk
 import com.aigriculture.app.ui.theme.AigriSidebar
 import com.aigriculture.app.ui.theme.AigriText
 import com.aigriculture.app.ui.theme.AigriWarn
+import com.aigriculture.app.ui.theme.Dimens
+import com.aigriculture.app.ui.theme.MonoFontFamily
 import kotlinx.coroutines.delay
 
 @Composable
@@ -64,28 +94,53 @@ fun SettingsScreen(
                 ErrorBanner(ui.toast!!, Modifier.fillMaxWidth())
             }
 
+            // ── Profile (read-only: avatar + name + role from /api/me) ──────────
+            ProfileCard(
+                avatarUrl = ui.me?.avatar_url,
+                displayName = ui.me?.display_name ?: ui.me?.username ?: "—",
+                username = ui.me?.username,
+                role = ui.me?.role,
+            )
+
+            // ── Account / Server (icon rows) ────────────────────────────────────
             AigriCard(Modifier.fillMaxWidth()) {
                 SectionLabel("Account")
-                Spacer(Modifier.height(10.dp))
-                InfoRow("Signed in as", ui.me?.display_name ?: ui.me?.username ?: "—")
-                InfoRow("Username", ui.me?.username ?: "—")
-                InfoRow("Role", ui.me?.role ?: "—")
-            }
-
-            AigriCard(Modifier.fillMaxWidth()) {
-                SectionLabel("Server")
-                Spacer(Modifier.height(10.dp))
-                InfoRow("Address", ui.host)
-            }
-
-            AigriCard(Modifier.fillMaxWidth()) {
-                SectionLabel("Alert email")
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Where FarmMonitor disease alerts and FLORA reports are sent.",
-                    color = AigriMuted, fontSize = 12.sp,
+                Spacer(Modifier.height(12.dp))
+                IconSettingRow(
+                    icon = Icons.Filled.Person,
+                    label = "Username",
+                    value = ui.me?.username ?: "—",
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
+                IconSettingRow(
+                    icon = Icons.Filled.Badge,
+                    label = "Role",
+                    value = ui.me?.role ?: "—",
+                )
+                Spacer(Modifier.height(12.dp))
+                IconSettingRow(
+                    icon = Icons.Filled.Dns,
+                    label = "Server",
+                    value = ui.host,
+                    valueMono = true,
+                )
+            }
+
+            // ── Notification email (bound to /api/notification_email) ────────────
+            AccentCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AccentIcon(Icons.Filled.AlternateEmail)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Alert email", color = AigriText, fontWeight = FontWeight.W700, fontSize = 15.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Where FarmMonitor disease alerts and FLORA reports are sent.",
+                            color = AigriMuted, fontSize = 12.sp,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 AigriTextField(
                     value = ui.email,
                     onValueChange = vm::setEmail,
@@ -93,6 +148,23 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     keyboardType = KeyboardType.Email,
                 )
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (ui.smtpReady) {
+                        Pill(
+                            text = "SMTP ready",
+                            dotColor = AigriOk,
+                            fg = AigriOk,
+                        )
+                    } else {
+                        Pill(
+                            text = "SMTP not configured",
+                            dotColor = AigriWarn,
+                            fg = AigriWarn,
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
                 Spacer(Modifier.height(10.dp))
                 PrimaryButton(
                     text = "Save email",
@@ -109,8 +181,11 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Intruder / security siren (bound to /api/buzzer {enabled}) ──────
             AigriCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    AccentIcon(Icons.Filled.VolumeUp)
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Security siren", color = AigriText, fontWeight = FontWeight.W700, fontSize = 15.sp)
                         Spacer(Modifier.height(4.dp))
@@ -140,7 +215,7 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            PrimaryButton(
+            DangerButton(
                 text = if (ui.loggingOut) "Signing out…" else "Sign out",
                 onClick = { vm.logout(onLoggedOut) },
                 modifier = Modifier.fillMaxWidth(),
@@ -156,10 +231,160 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * Read-only profile header. A soft accent halo sits behind the circular Coil
+ * avatar; when [avatarUrl] is null/blank the circle falls back to the first
+ * initial of the name (or a person glyph). Name + role come straight from
+ * /api/me — there is no upload or edit control.
+ */
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+private fun ProfileCard(
+    avatarUrl: String?,
+    displayName: String,
+    username: String?,
+    role: String?,
+) {
+    AccentCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(contentAlignment = Alignment.Center) {
+                // Soft glow halo behind the avatar.
+                Box(
+                    Modifier
+                        .size(74.dp)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(AigriAccentGlow.copy(alpha = 0.35f), Color.Transparent)
+                            ),
+                            CircleShape,
+                        )
+                )
+                val resolved = avatarUrl?.takeIf { it.isNotBlank() }?.let {
+                    if (it.startsWith("http")) it else Net.absUrl(it)
+                }
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape)
+                        .background(AigriBg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (resolved != null) {
+                        AsyncImage(
+                            model = resolved,
+                            contentDescription = "Avatar",
+                            modifier = Modifier.size(60.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        val initial = displayName.trim().firstOrNull()?.uppercaseChar()
+                        if (initial != null && initial.isLetterOrDigit()) {
+                            Text(
+                                initial.toString(),
+                                color = AigriAccentBright,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 26.sp,
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = AigriAccentBright,
+                                modifier = Modifier.size(30.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    displayName,
+                    color = AigriText,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 18.sp,
+                    maxLines = 1,
+                )
+                if (username != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text("@$username", color = AigriMuted, fontSize = 12.sp, maxLines = 1)
+                }
+                if (role != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Pill(text = role, dotColor = AigriAccent, fg = AigriAccentBright)
+                }
+            }
+        }
+    }
+}
+
+/** A leading accent icon chip used to head each settings group/row. */
+@Composable
+private fun AccentIcon(icon: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(Dimens.radiusSm))
+            .background(AigriAccent.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = AigriAccentBright, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** Icon row: leading accent icon + label, trailing value (mono for addresses). */
+@Composable
+private fun IconSettingRow(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    valueMono: Boolean = false,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        AccentIcon(icon)
+        Spacer(Modifier.width(12.dp))
         Text(label, color = AigriMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Text(value, color = AigriText, fontSize = 13.sp, fontWeight = FontWeight.W600)
+        Text(
+            value,
+            color = AigriText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.W600,
+            fontFamily = if (valueMono) MonoFontFamily else FontFamily.Default,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Red, destructive variant of [PrimaryButton] for the logout action. */
+@Composable
+private fun DangerButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    loading: Boolean = false,
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = !loading,
+        shape = RoundedCornerShape(Dimens.radiusSm),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = AigriDanger,
+            contentColor = Color.White,
+            disabledContainerColor = AigriDanger.copy(alpha = 0.4f),
+            disabledContentColor = Color.White.copy(alpha = 0.7f),
+        ),
+        border = BorderStroke(1.dp, AigriDanger.copy(alpha = 0.5f)),
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = Color.White,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(text, fontWeight = FontWeight.W700)
+        }
     }
 }

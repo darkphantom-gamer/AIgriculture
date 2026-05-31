@@ -4,29 +4,30 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aigriculture.app.data.net.AigriRepository
 import com.aigriculture.app.data.net.ApiResult
-import com.aigriculture.app.data.net.Net
 import com.aigriculture.app.data.net.StorageEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class StorageEventRow(
-    val date: String,
-    val time: String,
-    val type: String,
-    val label: String,
-    val images: Int,
-    val firstImage: String? = null,
-)
+// Nested storage hierarchy preserved from the backend tree
+// (GET /api/storage -> {year:{month:{day:[event]}}}), so the UI can render the
+// real Year > Month > Day > Time folder structure instead of a flat list.
+data class StorageDay(val day: String, val events: List<StorageEvent>)
+data class StorageMonth(val month: String, val days: List<StorageDay>, val count: Int)
+data class StorageYear(val year: String, val months: List<StorageMonth>, val count: Int)
 
 data class StorageUi(
-    val events: List<StorageEventRow> = emptyList(),
+    val years: List<StorageYear> = emptyList(),
+    val total: Int = 0,
+    val security: Int = 0,
+    val disease: Int = 0,
+    val harvest: Int = 0,
     val loading: Boolean = true,
     val error: String? = null,
 )
 
-/** Dedicated Storage browser — every stored security/farm/moisture event. */
+/** Dedicated Storage browser — the real nested Year/Month/Day/Time event tree. */
 class StorageViewModel : ViewModel() {
     private val _ui = MutableStateFlow(StorageUi())
     val ui: StateFlow<StorageUi> = _ui
@@ -37,36 +38,47 @@ class StorageViewModel : ViewModel() {
         _ui.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             when (val r = AigriRepository.storage()) {
-                is ApiResult.Ok -> _ui.update { it.copy(events = flatten(r.value), loading = false, error = null) }
+                is ApiResult.Ok -> _ui.update { build(r.value) }
                 is ApiResult.Err -> _ui.update { it.copy(loading = false, error = r.message) }
             }
         }
     }
 
-    private fun flatten(tree: Map<String, Map<String, Map<String, List<StorageEvent>>>>): List<StorageEventRow> {
-        val rows = mutableListOf<StorageEventRow>()
-        tree.forEach { (y, months) ->
-            months.forEach { (m, days) ->
-                days.forEach { (d, events) ->
+    private fun build(
+        tree: Map<String, Map<String, Map<String, List<StorageEvent>>>>,
+    ): StorageUi {
+        var total = 0
+        var sec = 0
+        var dis = 0
+        var har = 0
+        // Newest first at every level (descending y/m/d, descending time).
+        val years = tree.entries.sortedByDescending { it.key }.map { (y, months) ->
+            val ms = months.entries.sortedByDescending { it.key }.map { (m, days) ->
+                val ds = days.entries.sortedByDescending { it.key }.map { (d, events) ->
                     events.forEach { e ->
-                        val first = e.images.firstOrNull()
-                        val img = if (first != null) Net.absUrl("storage_img/$y/$m/$d/${e.time}/$first") else null
-                        rows.add(
-                            StorageEventRow(
-                                date = "$y/$m/$d",
-                                time = e.time,
-                                type = e.meta.event_type ?: e.meta.label ?: "event",
-                                label = e.meta.label ?: e.meta.message ?: "",
-                                images = e.images.size,
-                                firstImage = img,
-                            )
-                        )
+                        total++
+                        val t = (e.meta.event_type ?: e.meta.label ?: "").lowercase()
+                        when {
+                            t.contains("ripe") || t.contains("harvest") -> har++
+                            t.contains("disease") || t.contains("plant") ||
+                                t.contains("leaf") || t.contains("fruit") || t.contains("health") -> dis++
+                            else -> sec++
+                        }
                     }
+                    StorageDay(d, events.sortedByDescending { it.time })
                 }
+                StorageMonth(m, ds, ds.sumOf { it.events.size })
             }
+            StorageYear(y, ms, ms.sumOf { it.count })
         }
-        return rows
-            .sortedWith(compareByDescending<StorageEventRow> { it.date }.thenByDescending { it.time })
-            .take(60)
+        return StorageUi(
+            years = years,
+            total = total,
+            security = sec,
+            disease = dis,
+            harvest = har,
+            loading = false,
+            error = null,
+        )
     }
 }

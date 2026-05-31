@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -49,7 +50,10 @@ import coil.compose.AsyncImage
 import com.aigriculture.app.data.net.Net
 import com.aigriculture.app.data.net.ScheduleTask
 import com.aigriculture.app.ui.common.AigriTextField
+import com.aigriculture.app.ui.common.Pill
 import com.aigriculture.app.ui.theme.AigriAccent
+import com.aigriculture.app.ui.theme.AigriAccentBright
+import com.aigriculture.app.ui.theme.AigriAccentGlow
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigriBorder
 import com.aigriculture.app.ui.theme.AigriCard
@@ -72,14 +76,18 @@ fun FloraScreen(vm: FloraViewModel = viewModel()) {
 
     Column(modifier = Modifier.fillMaxSize().background(AigriBg)) {
         FloraHeader(mode = ui.mode, connected = ui.connected, onMode = vm::setMode)
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(ui.messages, key = { it.id }) { Bubble(it) { url -> viewerUrl = url } }
-            if (ui.typing) item(key = "typing") { TypingBubble() }
+        if (ui.messages.isEmpty() && !ui.typing) {
+            WelcomeHero(modifier = Modifier.weight(1f).fillMaxWidth())
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(ui.messages, key = { it.id }) { Bubble(it) { url -> viewerUrl = url } }
+                if (ui.typing) item(key = "typing") { TypingBubble() }
+            }
         }
         ScheduleBar(tasks = ui.schedule, open = ui.scheduleOpen, onToggle = vm::toggleSchedule)
         InputBar(value = ui.input, onChange = vm::onInput, onSend = vm::send)
@@ -104,6 +112,45 @@ fun FloraScreen(vm: FloraViewModel = viewModel()) {
                     contentScale = ContentScale.Fit,
                 )
             }
+        }
+    }
+}
+
+/** Empty-state hero: shown only when there are no messages yet. A soft accent
+ *  halo sits behind the 🌿 avatar; copy is static brand text, no farm data. */
+@Composable
+private fun WelcomeHero(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(120.dp)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(AigriAccentGlow.copy(alpha = 0.30f), Color.Transparent)
+                            ),
+                            CircleShape,
+                        )
+                )
+                Box(
+                    modifier = Modifier.size(72.dp).background(AigriTeal, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text("🌿", fontSize = 34.sp) }
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "Hi, I'm FLORA",
+                color = AigriText,
+                fontWeight = FontWeight.W800,
+                fontSize = 24.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Your farm's live operation and reasoning assistant.",
+                color = AigriMuted,
+                fontSize = 13.sp,
+            )
         }
     }
 }
@@ -190,10 +237,7 @@ private fun FloraHeader(mode: String, connected: Boolean, onMode: (String) -> Un
                     Text("FLORA Intelligence", color = AigriText, fontWeight = FontWeight.W700, fontSize = 14.sp)
                     Text("Farm Live Operation and Reasoning Assistant", color = AigriMuted, fontSize = 10.sp)
                 }
-                Box(
-                    modifier = Modifier.size(8.dp)
-                        .background(if (connected) AigriOk else AigriMuted, CircleShape)
-                )
+                OnlinePill(mode = mode)
             }
             Row(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
                 ModeChip("Cloud", mode == "cloud") { onMode("cloud") }
@@ -202,6 +246,20 @@ private fun FloraHeader(mode: String, connected: Boolean, onMode: (String) -> Un
             }
         }
     }
+}
+
+/** Header pill reflecting the real FLORA mode (effective_mode → ui.mode):
+ *  "Cloud" + accent dot when online, "Offline" + muted dot otherwise. */
+@Composable
+private fun OnlinePill(mode: String) {
+    val online = mode == "cloud"
+    Pill(
+        text = if (online) "Cloud" else "Offline",
+        dotColor = if (online) AigriOk else AigriMuted,
+        bg = AigriCard,
+        fg = if (online) AigriAccentBright else AigriMuted,
+        border = AigriBorder,
+    )
 }
 
 @Composable
@@ -342,7 +400,13 @@ private fun TypingBubble() {
 private fun InputBar(value: String, onChange: (String) -> Unit, onSend: () -> Unit) {
     Surface(color = AigriSidebar) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(AigriCard)
+                .border(1.dp, AigriBorder, RoundedCornerShape(26.dp))
+                .padding(6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             AigriTextField(
