@@ -19,6 +19,20 @@ Monitor soil moisture, automate irrigation, detect disease,detect harvest ready,
 
 ---
 
+<div align="center">
+
+### 📱 Get the app — AIgriculture Mobile <sub>(beta)</sub>
+
+[![Download the Android APK](https://img.shields.io/badge/⬇%20Download%20APK-AIgriculture%20Mobile%20beta-00cdb5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/darkphantom-gamer/AIgriculture/releases/download/app-v0.1.0/AIgriculture.apk)
+
+**Real-time farm control on your phone** — FLORA chat, live security & FarmMonitor cameras, soil-moisture & irrigation, plus threat / scan / watering notifications.
+
+[See the release →](https://github.com/darkphantom-gamer/AIgriculture/releases/tag/app-v0.1.0)
+
+</div>
+
+---
+
 ![Farm overview](docs/assets/small_prototype.jpeg)
 
 ---
