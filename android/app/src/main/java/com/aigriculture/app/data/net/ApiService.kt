@@ -1,13 +1,16 @@
 package com.aigriculture.app.data.net
 
 import kotlinx.serialization.json.JsonElement
+import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 
 interface ApiService {
@@ -100,4 +103,8 @@ interface ApiService {
 
     @POST("api/notification_email")
     suspend fun notifEmailSet(@Body body: NotifEmailReq): Response<NotifEmailResp>
+
+    @Multipart
+    @POST("api/upload_avatar")
+    suspend fun uploadAvatar(@Part file: MultipartBody.Part): UploadAvatarResp
 }

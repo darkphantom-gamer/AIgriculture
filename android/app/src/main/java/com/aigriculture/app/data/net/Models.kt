@@ -20,7 +20,14 @@ data class MeResp(
     val display_name: String? = null,
     val role: String? = null,
     val avatar_url: String? = null,
-    val permissions: List<String> = emptyList(),
+    val permissions: Map<String, Boolean> = emptyMap(),
+)
+
+@Serializable
+data class UploadAvatarResp(
+    val ok: Boolean = false,
+    val avatar_url: String? = null,
+    val error: String? = null,
 )
 
 @Serializable

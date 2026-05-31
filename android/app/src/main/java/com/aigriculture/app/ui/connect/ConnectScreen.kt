@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -128,28 +127,6 @@ fun ConnectScreen(
                     modifier = Modifier.fillMaxWidth(),
                     loading = ui.loading,
                 )
-                if (!ui.loading) {
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Go to dashboard",
-                            color = AigriAccentBright,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.W600,
-                        )
-                        Spacer(Modifier.size(6.dp))
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = AigriAccentBright,
-                            modifier = Modifier.size(15.dp),
-                        )
-                    }
-                }
             }
             Spacer(Modifier.height(16.dp))
             Text(

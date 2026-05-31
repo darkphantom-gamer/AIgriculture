@@ -1,7 +1,10 @@
 package com.aigriculture.app.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.VolumeUp
@@ -42,6 +46,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -78,8 +83,17 @@ fun SettingsScreen(
     vm: SettingsViewModel = viewModel(),
 ) {
     val ui by vm.ui.collectAsState()
+    val context = LocalContext.current
+
     LaunchedEffect(ui.toast) {
         if (ui.toast != null) { delay(3500); vm.clearToast() }
+    }
+
+    val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) vm.uploadAvatar(bytes)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AigriBg)) {
@@ -94,15 +108,17 @@ fun SettingsScreen(
                 ErrorBanner(ui.toast!!, Modifier.fillMaxWidth())
             }
 
-            // ── Profile (read-only: avatar + name + role from /api/me) ──────────
+            // ── Profile card: avatar (tap to change) + name + role ──────────────
             ProfileCard(
                 avatarUrl = ui.me?.avatar_url,
                 displayName = ui.me?.display_name ?: ui.me?.username ?: "—",
                 username = ui.me?.username,
                 role = ui.me?.role,
+                avatarUploading = ui.avatarUploading,
+                onEditAvatar = { avatarLauncher.launch("image/*") },
             )
 
-            // ── Account / Server (icon rows) ────────────────────────────────────
+            // ── Account / Server rows ────────────────────────────────────────────
             AigriCard(Modifier.fillMaxWidth()) {
                 SectionLabel("Account")
                 Spacer(Modifier.height(12.dp))
@@ -126,7 +142,7 @@ fun SettingsScreen(
                 )
             }
 
-            // ── Notification email (bound to /api/notification_email) ────────────
+            // ── Notification email ───────────────────────────────────────────────
             AccentCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AccentIcon(Icons.Filled.AlternateEmail)
@@ -151,17 +167,9 @@ fun SettingsScreen(
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (ui.smtpReady) {
-                        Pill(
-                            text = "SMTP ready",
-                            dotColor = AigriOk,
-                            fg = AigriOk,
-                        )
+                        Pill(text = "SMTP ready", dotColor = AigriOk, fg = AigriOk)
                     } else {
-                        Pill(
-                            text = "SMTP not configured",
-                            dotColor = AigriWarn,
-                            fg = AigriWarn,
-                        )
+                        Pill(text = "SMTP not configured", dotColor = AigriWarn, fg = AigriWarn)
                     }
                     Spacer(Modifier.weight(1f))
                 }
@@ -181,7 +189,7 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Intruder / security siren (bound to /api/buzzer {enabled}) ──────
+            // ── Security siren toggle ────────────────────────────────────────────
             AigriCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AccentIcon(Icons.Filled.VolumeUp)
@@ -231,67 +239,67 @@ fun SettingsScreen(
     }
 }
 
-/**
- * Read-only profile header. A soft accent halo sits behind the circular Coil
- * avatar; when [avatarUrl] is null/blank the circle falls back to the first
- * initial of the name (or a person glyph). Name + role come straight from
- * /api/me — there is no upload or edit control.
- */
 @Composable
 private fun ProfileCard(
     avatarUrl: String?,
     displayName: String,
     username: String?,
     role: String?,
+    avatarUploading: Boolean,
+    onEditAvatar: () -> Unit,
 ) {
     AccentCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Avatar with glow halo + tappable camera-edit badge
             Box(contentAlignment = Alignment.Center) {
-                // Soft glow halo behind the avatar.
                 Box(
                     Modifier
                         .size(74.dp)
                         .background(
-                            Brush.radialGradient(
-                                listOf(AigriAccentGlow.copy(alpha = 0.35f), Color.Transparent)
-                            ),
+                            Brush.radialGradient(listOf(AigriAccentGlow.copy(alpha = 0.35f), Color.Transparent)),
                             CircleShape,
                         )
                 )
-                val resolved = avatarUrl?.takeIf { it.isNotBlank() }?.let {
-                    if (it.startsWith("http")) it else Net.absUrl(it)
-                }
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(AigriBg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (resolved != null) {
-                        AsyncImage(
-                            model = resolved,
-                            contentDescription = "Avatar",
-                            modifier = Modifier.size(60.dp).clip(CircleShape),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        val initial = displayName.trim().firstOrNull()?.uppercaseChar()
-                        if (initial != null && initial.isLetterOrDigit()) {
-                            Text(
-                                initial.toString(),
-                                color = AigriAccentBright,
-                                fontWeight = FontWeight.W800,
-                                fontSize = 26.sp,
+                // 64dp outer box so the 20dp badge (at BottomEnd) doesn't clip under the circle
+                Box(Modifier.size(64.dp)) {
+                    val resolved = avatarUrl?.takeIf { it.isNotBlank() }?.let {
+                        if (it.startsWith("http")) it else Net.absUrl(it)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape)
+                            .background(AigriBg)
+                            .clickable(onClick = onEditAvatar),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (avatarUploading) {
+                            CircularProgressIndicator(Modifier.size(28.dp), color = AigriAccent, strokeWidth = 2.dp)
+                        } else if (resolved != null) {
+                            AsyncImage(
+                                model = resolved,
+                                contentDescription = "Avatar",
+                                modifier = Modifier.size(60.dp).clip(CircleShape),
+                                contentScale = ContentScale.Crop,
                             )
                         } else {
-                            Icon(
-                                Icons.Filled.Person,
-                                contentDescription = null,
-                                tint = AigriAccentBright,
-                                modifier = Modifier.size(30.dp),
-                            )
+                            val initial = displayName.trim().firstOrNull()?.uppercaseChar()
+                            if (initial != null && initial.isLetterOrDigit()) {
+                                Text(initial.toString(), color = AigriAccentBright, fontWeight = FontWeight.W800, fontSize = 26.sp)
+                            } else {
+                                Icon(Icons.Filled.Person, contentDescription = null, tint = AigriAccentBright, modifier = Modifier.size(30.dp))
+                            }
                         }
+                    }
+                    // Camera badge — bottom-right of the 64dp box
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .align(Alignment.BottomEnd)
+                            .background(AigriAccent, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.CameraAlt, contentDescription = "Change photo", modifier = Modifier.size(11.dp), tint = Color.White)
                     }
                 }
             }
@@ -317,7 +325,6 @@ private fun ProfileCard(
     }
 }
 
-/** A leading accent icon chip used to head each settings group/row. */
 @Composable
 private fun AccentIcon(icon: ImageVector) {
     Box(
@@ -331,7 +338,6 @@ private fun AccentIcon(icon: ImageVector) {
     }
 }
 
-/** Icon row: leading accent icon + label, trailing value (mono for addresses). */
 @Composable
 private fun IconSettingRow(
     icon: ImageVector,
@@ -354,7 +360,6 @@ private fun IconSettingRow(
     }
 }
 
-/** Red, destructive variant of [PrimaryButton] for the logout action. */
 @Composable
 private fun DangerButton(
     text: String,
@@ -376,11 +381,7 @@ private fun DangerButton(
         border = BorderStroke(1.dp, AigriDanger.copy(alpha = 0.5f)),
     ) {
         if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                color = Color.White,
-                strokeWidth = 2.dp,
-            )
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
         } else {
             Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))

@@ -20,6 +20,7 @@ data class SettingsUi(
     val emailSaving: Boolean = false,
     val sirenEnabled: Boolean = true,
     val sirenBusy: Boolean = false,
+    val avatarUploading: Boolean = false,
     val toast: String? = null,
 )
 
@@ -61,6 +62,19 @@ class SettingsViewModel : ViewModel() {
             when (val r = AigriRepository.setSiren(enabled)) {
                 is ApiResult.Ok -> _ui.update { it.copy(sirenEnabled = r.value, sirenBusy = false) }
                 is ApiResult.Err -> _ui.update { it.copy(sirenBusy = false, toast = r.message) }
+            }
+        }
+    }
+
+    fun uploadAvatar(bytes: ByteArray) {
+        _ui.update { it.copy(avatarUploading = true) }
+        viewModelScope.launch {
+            when (val r = AigriRepository.uploadAvatar(bytes)) {
+                is ApiResult.Ok -> {
+                    val updated = (AigriRepository.me() as? ApiResult.Ok)?.value
+                    _ui.update { it.copy(avatarUploading = false, me = updated ?: it.me, toast = "Profile photo updated.") }
+                }
+                is ApiResult.Err -> _ui.update { it.copy(avatarUploading = false, toast = r.message) }
             }
         }
     }

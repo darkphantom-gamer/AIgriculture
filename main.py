@@ -299,7 +299,7 @@ except Exception as _ie:
     print(f"[WARN] smbus2/ADS1115 not available ({_ie})")
 
 # ── FastAPI ────────────────────────────────────────────────────────────────────
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request, Form, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse, Response
 import uvicorn
 
@@ -2897,6 +2897,39 @@ def api_me(_user: str = Depends(require_auth)):
         "permissions": _user_permissions(role),
     }, headers={"Cache-Control": "no-store"})
 
+
+# ── Profile picture upload ─────────────────────────────────────────────────────
+_AVATAR_MIME_EXT = {
+    "image/jpeg": ".jpg", "image/png": ".png",
+    "image/webp": ".webp", "image/gif": ".gif",
+}
+
+@app.post("/api/upload_avatar")
+async def api_upload_avatar(file: UploadFile, _user: str = Depends(require_auth)):
+    if file.content_type not in _AVATAR_MIME_EXT:
+        return JSONResponse({"ok": False, "error": "Unsupported file type. Use JPEG, PNG, or WebP."}, status_code=400)
+    data = await file.read()
+    if len(data) > 8 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "File too large (max 8 MB)."}, status_code=400)
+    ext = _AVATAR_MIME_EXT[file.content_type]
+    asset_dir = _asset_dir()
+    # Remove all existing farmer.* variants so old hashed URLs become invalid
+    for old in asset_dir.glob("farmer.*"):
+        if old.is_file() and old.suffix.lower() in _ASSET_MEDIA:
+            old.unlink(missing_ok=True)
+    dest = asset_dir / f"farmer{ext}"
+    dest.write_bytes(data)
+    _ASSET_HASH_CACHE.clear()
+    new_url = _asset_url(f"farmer{ext}")
+    if MYSQL_AVAILABLE:
+        try:
+            conn = _db_conn()
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE users SET avatar_url=%s WHERE username=%s", (new_url, _user))
+        except Exception as exc:
+            hailo_logger.warning(f"avatar DB update failed: {exc}")
+    return JSONResponse({"ok": True, "avatar_url": new_url})
 
 # ── Notification email API ─────────────────────────────────────────────────────
 @app.get("/api/notification_email")

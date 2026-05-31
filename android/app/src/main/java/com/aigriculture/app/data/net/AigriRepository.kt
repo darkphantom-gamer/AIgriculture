@@ -3,6 +3,9 @@ package com.aigriculture.app.data.net
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -208,6 +211,16 @@ object AigriRepository {
         val b = resp.body()
         if (resp.isSuccessful && b?.ok == true) ApiResult.Ok(b.message ?: "Stopping scan.")
         else ApiResult.Err(b?.error ?: "Couldn't stop scan (${resp.code()}).", resp.code())
+    } catch (e: Exception) {
+        ApiResult.Err(friendly(e))
+    }
+
+    suspend fun uploadAvatar(bytes: ByteArray): ApiResult<String> = try {
+        val body = bytes.toRequestBody("image/jpeg".toMediaType())
+        val part = MultipartBody.Part.createFormData("file", "avatar.jpg", body)
+        val resp = Net.api.uploadAvatar(part)
+        if (resp.ok) ApiResult.Ok(resp.avatar_url ?: "")
+        else ApiResult.Err(resp.error ?: "Upload failed.")
     } catch (e: Exception) {
         ApiResult.Err(friendly(e))
     }
