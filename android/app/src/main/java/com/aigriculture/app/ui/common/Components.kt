@@ -60,9 +60,10 @@ fun BrandHeader(subtitle: String? = null) {
                 Text(
                     subtitle.uppercase(),
                     color = AigriMuted,
-                    fontSize = 10.sp,
-                    letterSpacing = 2.sp,
+                    fontSize = 9.sp,
+                    letterSpacing = 0.8f.sp,
                     fontWeight = FontWeight.W600,
+                    maxLines = 1,
                 )
             }
         }

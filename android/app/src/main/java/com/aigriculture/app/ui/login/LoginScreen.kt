@@ -89,7 +89,7 @@ fun LoginScreen(
                             ),
                         ),
                 )
-                BrandHeader(subtitle = "Strawberry Monitoring")
+                BrandHeader(subtitle = "Farm Monitoring Console")
             }
             Spacer(Modifier.height(28.dp))
             AccentCard(modifier = Modifier.fillMaxWidth()) {
