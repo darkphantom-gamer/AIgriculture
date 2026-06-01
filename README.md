@@ -162,6 +162,7 @@ After `cp .env.example .env`, open `.env` and fill in your own:
 | `CEREBRAS_API_KEY` | Your Cerebras key (optional) | https://cloud.cerebras.ai |
 | `MISTRAL_API_KEY` | Your Mistral key (optional) | https://console.mistral.ai |
 | `GEMINI_API_KEY` | Your Google AI Studio key (optional) | https://aistudio.google.com |
+| `GEMINI_MODEL` | Gemini model override (optional; defaults to `gemini-2.5-flash`) | Google AI Studio / Gemini API docs |
 
 Set **any one** AI provider and FLORA gets full tool-using chat. Leave them all empty and FLORA still works offline with keyword routing.
 

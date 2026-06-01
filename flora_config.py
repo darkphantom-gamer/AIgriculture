@@ -32,6 +32,7 @@ CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "").strip()
 MISTRAL_API_KEY  = os.getenv("MISTRAL_API_KEY", "").strip()
 GEMINI_API_KEY   = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_API_KEY2  = os.getenv("GEMINI_API_KEY2", "").strip()
+GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
 
 def _gemini_key_pool():
@@ -83,7 +84,7 @@ PROVIDERS = {
     "gemini": {
         "label": "Gemini",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model": "gemini-2.0-flash",
+        "model": GEMINI_MODEL,
         "keys": GEMINI_API_KEYS,
         "max_history": 12,
     },

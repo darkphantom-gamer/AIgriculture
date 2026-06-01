@@ -76,6 +76,7 @@ Copy `.env.example` to `.env` and fill in your values.
 | `CEREBRAS_API_KEY` | no | FLORA AI via Cerebras |
 | `MISTRAL_API_KEY` | no | FLORA AI via Mistral |
 | `GEMINI_API_KEY` | no | FLORA AI via Gemini |
+| `GEMINI_MODEL` | no | Gemini model override (default `gemini-2.5-flash`) |
 | `MESH_ENABLED` | no | Set `true` to enable the in-process Meshtastic LoRa bridge |
 | `MESH_HOST` | no | Host of your `meshtasticd` (default `localhost`) |
 | `MESH_ALLOWED_NODES` | no | Comma-separated node IDs that FLORA responds to |

@@ -7,7 +7,7 @@ OpenAI-compatible protocol, so one client implementation covers all of them.
 
 Offline path: deterministic keyword routing straight to the farm tools — no
 network, no API key, always available. The agent falls back to it automatically
-when every cloud provider is rate-limited or no keys are configured.
+when every cloud provider is unavailable or no keys are configured.
 """
 import asyncio
 import json
@@ -155,11 +155,40 @@ def _save_history(user_msg: str, assistant_msg: str) -> None:
 
 # ── Error classification ────────────────────────────────────────────────────────
 
-def _is_quota_error(err: str) -> bool:
-    e = err.lower()
+def _error_text(exc) -> str:
+    """Return a lowercase, structured-ish provider error string.
+
+    OpenAI-compatible clients expose useful status/body fields, while some
+    providers only put details in str(exc). Keep this local and sanitized: no API
+    keys are included by the SDK in these fields.
+    """
+    parts = [str(exc)]
+    for attr in ("status_code", "code", "type"):
+        val = getattr(exc, attr, None)
+        if val:
+            parts.append(str(val))
+    body = getattr(exc, "body", None)
+    if body:
+        try:
+            parts.append(json.dumps(body, ensure_ascii=False))
+        except Exception:
+            parts.append(str(body))
+    return " ".join(parts).lower()
+
+
+def _is_quota_error(exc) -> bool:
+    """True only for real quota/rate-limit failures.
+
+    This intentionally avoids broad words like "insufficient", "exceeded", or
+    "capacity" on their own. Gemini can use those in auth/model/project errors,
+    and mislabeling them as quota makes a fresh free-tier key look exhausted.
+    """
+    if str(getattr(exc, "status_code", "") or "") == "429":
+        return True
+    e = _error_text(exc)
     return any(t in e for t in (
-        "429", "rate limit", "rate_limit", "quota", "resource_exhausted",
-        "too many requests", "insufficient", "exceeded", "capacity",
+        "rate limit", "rate_limit", "quota", "resource_exhausted",
+        "too many requests", "requests per minute", "tokens per minute",
     ))
 
 
@@ -281,7 +310,7 @@ async def _run_cloud_provider(pname: str, user_message: str, broadcast, brief: b
                 continue
             err = str(exc)
             print(f"[FLORA:{pname}] {err[:400]}")
-            if _is_quota_error(err):
+            if _is_quota_error(exc):
                 return _QUOTA
             return None  # transient/other error — let caller try next provider
 
