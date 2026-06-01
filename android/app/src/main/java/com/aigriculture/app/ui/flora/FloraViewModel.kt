@@ -1,12 +1,14 @@
 package com.aigriculture.app.ui.flora
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aigriculture.app.data.net.AigriRepository
 import com.aigriculture.app.data.net.ApiResult
 import com.aigriculture.app.data.net.FloraSocket
 import com.aigriculture.app.data.net.ScheduleTask
 import com.aigriculture.app.data.net.WsStatus
+import com.aigriculture.app.notify.NotificationHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -33,9 +35,10 @@ data class FloraUi(
  * renders the server's event stream. Falls back to POST /api/flora/chat if the
  * socket can't open.
  */
-class FloraViewModel : ViewModel() {
+class FloraViewModel(application: Application) : AndroidViewModel(application) {
 
     private val socket = FloraSocket()
+    private val appContext = application.applicationContext
     private var counter = 0L
     private fun nextId() = ++counter
 
@@ -116,16 +119,25 @@ class FloraViewModel : ViewModel() {
                 _ui.update { it.copy(typing = active) }
             }
             "response" -> { _ui.update { it.copy(typing = false) }; addMsg(Role.FLORA, str(m, "content")) }
-            "error" -> { _ui.update { it.copy(typing = false) }; addMsg(Role.SYS, "⚠️ " + str(m, "content")) }
+            "error" -> {
+                val msg = str(m, "content")
+                _ui.update { it.copy(typing = false) }
+                addMsg(Role.SYS, "⚠️ $msg")
+                NotificationHelper.notify(appContext, "FLORA needs attention", msg.ifBlank { "A FLORA request failed." })
+            }
             "thinking" -> addMsg(Role.SYS, str(m, "content"))
             "auto_offline" -> {
+                val reason = str(m, "reason")
                 _ui.update { it.copy(mode = "offline") }
-                addMsg(Role.SYS, "📡 Offline: " + str(m, "reason"))
+                addMsg(Role.SYS, "📡 Offline: $reason")
+                NotificationHelper.notify(appContext, "FLORA switched offline", reason.ifBlank { "Cloud mode is unavailable." })
             }
             "tool_call" -> addMsg(Role.SYS, "🔧 " + str(m, "tool") + "…")
             "scheduled_result" -> {
                 val summary = m["summary"]?.jsonPrimitive?.content
-                addMsg(Role.FLORA, summary ?: ("✅ " + str(m, "tool") + " completed"))
+                val text = summary ?: ("✅ " + str(m, "tool") + " completed")
+                addMsg(Role.FLORA, text)
+                NotificationHelper.notify(appContext, "FLORA task complete", text)
                 loadSchedule()
             }
             // tool_result and other intermediate events: the final 'response' carries the text.

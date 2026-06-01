@@ -21,6 +21,7 @@ data class SettingsUi(
     val sirenEnabled: Boolean = true,
     val sirenBusy: Boolean = false,
     val avatarUploading: Boolean = false,
+    val avatarVersion: Long = 0L,
     val toast: String? = null,
 )
 
@@ -80,7 +81,16 @@ class SettingsViewModel : ViewModel() {
             when (val r = AigriRepository.uploadAvatar(bytes, mime)) {
                 is ApiResult.Ok -> {
                     val updated = (AigriRepository.me() as? ApiResult.Ok)?.value
-                    _ui.update { it.copy(avatarUploading = false, me = updated ?: it.me, toast = "Profile photo updated.") }
+                    _ui.update {
+                        val current = updated ?: it.me
+                        val uploadedUrl = r.value.takeIf { url -> url.isNotBlank() }
+                        it.copy(
+                            avatarUploading = false,
+                            me = current?.copy(avatar_url = uploadedUrl ?: current.avatar_url),
+                            avatarVersion = System.currentTimeMillis(),
+                            toast = "Profile photo updated.",
+                        )
+                    }
                 }
                 is ApiResult.Err -> _ui.update { it.copy(avatarUploading = false, toast = r.message) }
             }

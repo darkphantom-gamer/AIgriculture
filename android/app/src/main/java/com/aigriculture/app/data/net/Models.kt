@@ -67,6 +67,8 @@ data class StateMsg(
     val pumps: Map<String, Boolean> = emptyMap(),
     val auto_irr: Boolean = false,
     val at_farm: Boolean = false,
+    val security_cam_on: Boolean? = null,
+    val farm_cam_on: Boolean? = null,
     val burst: Map<String, String> = emptyMap(),
     val alerts: JsonElement? = null,
     val last_watered: JsonElement? = null,

@@ -323,7 +323,7 @@ except Exception as _ie:
     print(f"[WARN] smbus2/ADS1115 not available ({_ie})")
 
 # ── FastAPI ────────────────────────────────────────────────────────────────────
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request, Form, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse, Response
 import uvicorn
 
@@ -568,8 +568,10 @@ _ASSET_MEDIA = {
     ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
     ".mp3": "audio/mpeg",
 }
+_AVATAR_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _ASSET_HASH_CACHE = {}
 _STORAGE_ALIAS_CACHE = {}
+_AVATAR_ALIAS_CACHE = {}
 
 
 def _file_hash(path: Path, length: int = HASH_LEN) -> str:
@@ -613,6 +615,64 @@ def _asset_url(filename: str) -> str:
     if not path.exists() or path.suffix.lower() not in _ASSET_MEDIA:
         return f"/img/{Path(filename).name}"
     return f"/img/{_opaque_hashed_filename(path)}"
+
+
+def _avatar_dir() -> Path:
+    return STORAGE_PATH / "avatars"
+
+
+def _safe_avatar_stem(username: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", str(username or "user").strip()).strip("_").lower()
+    return (cleaned or "user")[:48]
+
+
+def _avatar_url(path: Path) -> str:
+    return f"/avatar/{_opaque_hashed_filename(path)}"
+
+
+def _resolve_avatar(filename: str):
+    safe_name = Path(filename).name
+    m = _OPAQUE_HASH_RE.match(safe_name)
+    if not m:
+        return None
+    hash_part = m.group('hash').lower()
+    suffix = m.group('suffix').lower()
+    if suffix not in _AVATAR_EXTS:
+        return None
+    root = _avatar_dir()
+    if not root.is_dir():
+        return None
+    key = (hash_part, suffix)
+    cached = _AVATAR_ALIAS_CACHE.get(key)
+    if cached and cached.exists():
+        return cached
+    for candidate in root.iterdir():
+        if not candidate.is_file() or candidate.suffix.lower() != suffix:
+            continue
+        try:
+            if _file_hash(candidate, len(hash_part)) == hash_part:
+                _AVATAR_ALIAS_CACHE[key] = candidate
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def _avatar_url_usable(url: str | None) -> bool:
+    raw = (url or "").strip()
+    if not raw:
+        return False
+    path = urlparse(raw).path or raw
+    name = Path(path).name
+    if path.startswith("/avatar/"):
+        return _resolve_avatar(name) is not None
+    if path.startswith("/img/"):
+        return _resolve_opaque_asset(name) is not None
+    return raw.startswith("http://") or raw.startswith("https://")
+
+
+def _profile_avatar_url(url: str | None) -> str:
+    return (url or "").strip() if _avatar_url_usable(url) else _asset_url("farmer.png")
 
 
 def _resolve_opaque_asset(filename: str):
@@ -1375,6 +1435,8 @@ async def ws_push_task():
                 "pumps":    ps,
                 "auto_irr": ae,
                 "at_farm":  af,
+                "security_cam_on": security_cam_on,
+                "farm_cam_on": farm_cam_on,
                 "alerts":   active_alerts,
                 "burst":    dict(burst_state),
                 "last_watered": _last_watered_map(),
@@ -2656,7 +2718,7 @@ def _get_user_profile(username: str) -> dict:
                         "username": row.get("username") or username,
                         "role": row.get("role") or ADMIN_ROLE,
                         "display_name": row.get("display_name") or row.get("username") or username,
-                        "avatar_url": row.get("avatar_url") or _asset_url("farmer.png"),
+                        "avatar_url": _profile_avatar_url(row.get("avatar_url")),
                     })
     except Exception as exc:
         hailo_logger.warning(f"user profile lookup failed: {exc}")
@@ -2785,6 +2847,50 @@ def api_me(_user: str = Depends(require_auth)):
         "permissions": _user_permissions(role),
     }, headers={"Cache-Control": "no-store"})
 
+
+# ── Profile picture upload ─────────────────────────────────────────────────────
+_AVATAR_MIME_EXT = {
+    "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png",
+    "image/webp": ".webp", "image/gif": ".gif",
+}
+
+@app.post("/api/upload_avatar")
+async def api_upload_avatar(file: UploadFile, _user: str = Depends(require_auth)):
+    content_type = (file.content_type or "").split(";", 1)[0].strip().lower()
+    if content_type not in _AVATAR_MIME_EXT:
+        return JSONResponse({"ok": False, "error": "Unsupported file type. Use JPEG, PNG, or WebP."}, status_code=400)
+    data = await file.read()
+    if not data:
+        return JSONResponse({"ok": False, "error": "The selected file was empty."}, status_code=400)
+    if len(data) > 8 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "File too large (max 8 MB)."}, status_code=400)
+    avatar_root = _avatar_dir()
+    try:
+        _ensure_writable_dir(avatar_root, "profile avatar folder")
+    except PermissionError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+    ext = _AVATAR_MIME_EXT[content_type]
+    stem = _safe_avatar_stem(_user)
+    tmp = avatar_root / f".{stem}_{int(time.time() * 1000)}{ext}"
+    tmp.write_bytes(data)
+    digest = _file_hash(tmp)
+    dest = avatar_root / f"{stem}_{digest}{ext}"
+    if dest.exists():
+        tmp.unlink(missing_ok=True)
+    else:
+        tmp.replace(dest)
+    _AVATAR_ALIAS_CACHE.clear()
+    new_url = _avatar_url(dest)
+    if MYSQL_AVAILABLE:
+        try:
+            conn = _db_conn()
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE users SET avatar_url=%s WHERE username=%s", (new_url, _user))
+        except Exception as exc:
+            hailo_logger.warning(f"avatar DB update failed: {exc}")
+    return JSONResponse({"ok": True, "avatar_url": new_url}, headers={"Cache-Control": "no-store"})
 
 # ── Notification email API ─────────────────────────────────────────────────────
 @app.get("/api/notification_email")
@@ -3559,6 +3665,8 @@ def state_api(_user: str = Depends(require_auth)):
         "pumps":    ps,
         "auto_irr": ae,
         "at_farm":  af,
+        "security_cam_on": security_cam_on,
+        "farm_cam_on": farm_cam_on,
         "alerts":   active_alerts,
         "burst":    dict(burst_state),
         "last_watered": _last_watered_map(),
@@ -3675,6 +3783,23 @@ async def serve_image(filename: str):
     if img_path is None:
         raise HTTPException(status_code=404, detail="Asset not found")
     return FileResponse(str(img_path), media_type=_ASSET_MEDIA[img_path.suffix.lower()], headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+# ── Serve uploaded profile avatars ────────────────────────────────────────────
+@app.get("/avatar/{filename}")
+async def serve_avatar(filename: str, _user: str = Depends(require_auth)):
+    from fastapi.responses import FileResponse
+    from fastapi import HTTPException
+    safe_name = Path(filename).name
+    if not _is_opaque_hashed_filename(safe_name):
+        raise HTTPException(status_code=404, detail="Use hashed avatar URL")
+    avatar_path = _resolve_avatar(safe_name)
+    if avatar_path is None:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    return FileResponse(
+        str(avatar_path),
+        media_type=_ASSET_MEDIA[avatar_path.suffix.lower()],
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 # ── Serve dashboard HTML ───────────────────────────────────────────────────────
 SENSOR_UI_PATCH = r"""

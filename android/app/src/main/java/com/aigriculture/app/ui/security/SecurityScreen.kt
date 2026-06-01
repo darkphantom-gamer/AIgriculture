@@ -2,6 +2,7 @@ package com.aigriculture.app.ui.security
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -123,7 +124,7 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
                 AigriCard(Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     Column {
                         Box {
-                            MjpegView("stream", Modifier.fillMaxWidth().height(320.dp))
+                            MjpegView("stream", Modifier.fillMaxWidth().aspectRatio(4f / 3f))
                             // "REC" pill only when the guard is actually armed (away).
                             if (ui.armed) {
                                 Pill(

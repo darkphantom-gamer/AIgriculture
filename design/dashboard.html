@@ -622,7 +622,8 @@ let currentUser={username:'FarmAdmin',display_name:'Farm Admin',role:'admin',ava
 function isViewer(){return currentUser&&currentUser.role==='viewer';}
 function requireAdminControl(label){if(isViewer()){showToast('View-only demo account · Admin login required for '+label);return false;}return true;}
 function setTextAll(selector,text){document.querySelectorAll(selector).forEach(el=>{el.textContent=text;});}
-function setImageAll(selector,url,alt){document.querySelectorAll(selector).forEach(img=>{img.src=url;img.alt=alt||'User';});}
+function avatarFallbackDisplay(el){return el&&el.classList&&el.classList.contains('ava-fallback')?'flex':'grid';}
+function setImageAll(selector,url,alt){document.querySelectorAll(selector).forEach(img=>{const fb=img.nextElementSibling;img.style.display='';if(fb)fb.style.display='none';img.onerror=function(){this.style.display='none';const next=this.nextElementSibling;if(next)next.style.display=avatarFallbackDisplay(next);};img.src=url;img.alt=alt||'User';});}
 function applyUserProfile(user){
   currentUser=Object.assign(currentUser,user||{});
   const viewer=isViewer();

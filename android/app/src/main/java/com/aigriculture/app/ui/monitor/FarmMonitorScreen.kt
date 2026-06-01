@@ -7,6 +7,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -110,9 +111,10 @@ fun FarmMonitorScreen(showHeader: Boolean = true, vm: FarmMonitorViewModel = vie
                 AigriCard(Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     Column {
                         Box {
+                            val cameraModifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
                             if (s?.camera_ok == false) {
                                 Box(
-                                    Modifier.fillMaxWidth().height(320.dp).background(Color.Black),
+                                    cameraModifier.background(Color.Black),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
@@ -121,11 +123,11 @@ fun FarmMonitorScreen(showHeader: Boolean = true, vm: FarmMonitorViewModel = vie
                                     )
                                 }
                             } else {
-                                MjpegView("farm_stream", Modifier.fillMaxWidth().height(320.dp))
+                                MjpegView("farm_stream", cameraModifier)
                             }
                             LiveFeedOverlay(
                                 scanning = scanning,
-                                modifier = Modifier.fillMaxWidth().height(320.dp),
+                                modifier = cameraModifier,
                             )
                         }
                         Text(

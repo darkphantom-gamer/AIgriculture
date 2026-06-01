@@ -2,6 +2,12 @@ package com.aigriculture.app.ui.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +45,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +85,8 @@ import com.aigriculture.app.ui.theme.AigriWarn
 import com.aigriculture.app.ui.theme.Dimens
 import com.aigriculture.app.ui.theme.MonoFontFamily
 import kotlinx.coroutines.delay
+import java.io.ByteArrayOutputStream
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -91,9 +102,9 @@ fun SettingsScreen(
 
     val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-            if (bytes != null) vm.uploadAvatar(bytes, mime)
+            val avatar = readAvatarUpload(context, uri)
+            if (avatar != null) vm.uploadAvatar(avatar.bytes, avatar.mime)
+            else vm.uploadAvatar(ByteArray(0), "image/jpeg")
         }
     }
 
@@ -116,6 +127,7 @@ fun SettingsScreen(
                 username = ui.me?.username,
                 role = ui.me?.role,
                 avatarUploading = ui.avatarUploading,
+                avatarVersion = ui.avatarVersion,
                 onEditAvatar = { avatarLauncher.launch("image/*") },
             )
 
@@ -247,6 +259,7 @@ private fun ProfileCard(
     username: String?,
     role: String?,
     avatarUploading: Boolean,
+    avatarVersion: Long,
     onEditAvatar: () -> Unit,
 ) {
     AccentCard(Modifier.fillMaxWidth()) {
@@ -265,7 +278,8 @@ private fun ProfileCard(
                 Box(Modifier.size(64.dp)) {
                     val resolved = avatarUrl?.takeIf { it.isNotBlank() }?.let {
                         if (it.startsWith("http")) it else Net.absUrl(it)
-                    }
+                    }?.let { cacheBustAvatar(it, avatarVersion) }
+                    var avatarFailed by remember(resolved) { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
                             .size(60.dp)
@@ -276,12 +290,13 @@ private fun ProfileCard(
                     ) {
                         if (avatarUploading) {
                             CircularProgressIndicator(Modifier.size(28.dp), color = AigriAccent, strokeWidth = 2.dp)
-                        } else if (resolved != null) {
+                        } else if (resolved != null && !avatarFailed) {
                             AsyncImage(
                                 model = resolved,
                                 contentDescription = "Avatar",
                                 modifier = Modifier.size(60.dp).clip(CircleShape),
                                 contentScale = ContentScale.Crop,
+                                onError = { avatarFailed = true },
                             )
                         } else {
                             val initial = displayName.trim().firstOrNull()?.uppercaseChar()
@@ -324,6 +339,45 @@ private fun ProfileCard(
             }
         }
     }
+}
+
+private fun cacheBustAvatar(url: String, version: Long): String {
+    if (version <= 0L) return url
+    val sep = if (url.contains("?")) "&" else "?"
+    return "$url${sep}v=$version"
+}
+
+private data class AvatarUpload(val bytes: ByteArray, val mime: String)
+
+private val supportedAvatarMimes = setOf("image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif")
+
+private fun readAvatarUpload(context: Context, uri: Uri): AvatarUpload? {
+    val mime = context.contentResolver.getType(uri)
+        ?.substringBefore(";")
+        ?.lowercase(Locale.US)
+        ?: "image/jpeg"
+    val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+    if (mime in supportedAvatarMimes) return AvatarUpload(raw, mime)
+
+    val jpeg = decodeAvatar(context, uri)?.let { bitmap ->
+        ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            out.toByteArray()
+        }
+    }
+    return jpeg?.let { AvatarUpload(it, "image/jpeg") } ?: AvatarUpload(raw, mime)
+}
+
+private fun decodeAvatar(context: Context, uri: Uri): Bitmap? = try {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }
+    } else {
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+    }
+} catch (_: Exception) {
+    null
 }
 
 @Composable

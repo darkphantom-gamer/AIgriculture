@@ -219,8 +219,8 @@ object AigriRepository {
 
     suspend fun uploadAvatar(bytes: ByteArray, mime: String): ApiResult<String> = try {
         // Send the picked image with its real MIME so the server's allow-list check is
-        // honest; the part filename's extension just mirrors it (the server always
-        // stores the shared avatar as farmer.png regardless).
+        // honest; the part filename's extension just mirrors it. The server stores
+        // avatars as content-hashed runtime files so web and app caches never fight.
         val mediaType = mime.toMediaTypeOrNull() ?: "image/jpeg".toMediaType()
         val ext = when {
             mime.contains("png", true) -> "png"
