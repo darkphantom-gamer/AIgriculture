@@ -1,5 +1,10 @@
 package com.aigriculture.app.ui.shell
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.aigriculture.app.notify.AlertMonitor
 import com.aigriculture.app.ui.analytics.AnalyticsScreen
 import com.aigriculture.app.ui.camera.LiveCameraScreen
@@ -54,6 +61,8 @@ fun AppShell(onLoggedOut: () -> Unit) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     val tabs = Tab.values()
     val context = LocalContext.current
+
+    NotificationPermissionGate()
 
     // Watch the farm server for the whole logged-in session and raise phone
     // notifications for threats / scans / irrigation. Stops on logout (dispose).
@@ -93,6 +102,23 @@ fun AppShell(onLoggedOut: () -> Unit) {
                 Tab.ANALYTICS -> AnalyticsScreen()
                 Tab.SETTINGS -> SettingsScreen(onLoggedOut = onLoggedOut)
             }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPermissionGate() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }

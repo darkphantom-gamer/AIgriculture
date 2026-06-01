@@ -111,7 +111,7 @@ fun FarmMonitorScreen(showHeader: Boolean = true, vm: FarmMonitorViewModel = vie
                 AigriCard(Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     Column {
                         Box {
-                            val cameraModifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
+                            val cameraModifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                             if (s?.camera_ok == false) {
                                 Box(
                                     cameraModifier.background(Color.Black),

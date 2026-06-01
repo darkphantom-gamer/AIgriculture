@@ -124,7 +124,7 @@ fun SecurityScreen(showHeader: Boolean = true, vm: SecurityViewModel = viewModel
                 AigriCard(Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     Column {
                         Box {
-                            MjpegView("stream", Modifier.fillMaxWidth().aspectRatio(4f / 3f))
+                            MjpegView("stream", Modifier.fillMaxWidth().aspectRatio(16f / 9f))
                             // "REC" pill only when the guard is actually armed (away).
                             if (ui.armed) {
                                 Pill(

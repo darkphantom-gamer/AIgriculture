@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.catch
 fun MjpegView(
     path: String,
     modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Fit,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     var bitmap by remember(path) { mutableStateOf(MjpegFrameCache.get(path)) }
     var error by remember(path) { mutableStateOf<String?>(null) }
