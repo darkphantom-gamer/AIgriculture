@@ -58,7 +58,7 @@ fun BrandHeader(subtitle: String? = null) {
             }
             if (subtitle != null) {
                 Text(
-                    subtitle.uppercase(),
+                    subtitle,
                     color = AigriMuted,
                     fontSize = 9.sp,
                     letterSpacing = 0.8f.sp,
