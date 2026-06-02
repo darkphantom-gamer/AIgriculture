@@ -1,0 +1,50 @@
+name: Fork readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    name: Fork hygiene check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Block committed local secrets
+        run: |
+          blocked=0
+          for path in .env config.yaml wiring.yaml .jwt_secret runtime/.jwt_secret; do
+            if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+              echo "::error file=$path::Local runtime/secret file must not be committed. Use the matching *.example file instead."
+              blocked=1
+            fi
+          done
+          exit "$blocked"
+
+      - name: Verify fork bootstrap files
+        run: |
+          test -f .env.example
+          test -f config.example.yaml
+          test -f wiring.example.yaml
+          test -f requirements.txt
+          test -f assets/farmer.png
+          test -f android/app/build.gradle.kts
+
+      - name: Contributor summary
+        run: |
+          {
+            echo "## Fork readiness"
+            echo
+            echo "This PR is safe to test from a fork: no secrets are required."
+            echo
+            echo "- Python smoke tests run in CI."
+            echo "- Android changes build a debug APK artifact."
+            echo "- Release uploads stay manual for maintainers."
+          } >> "$GITHUB_STEP_SUMMARY"

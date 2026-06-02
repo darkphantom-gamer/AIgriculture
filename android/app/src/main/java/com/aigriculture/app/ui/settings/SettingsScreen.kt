@@ -45,9 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.aigriculture.app.R
 import com.aigriculture.app.data.net.Net
 import com.aigriculture.app.ui.common.AccentCard
 import com.aigriculture.app.ui.common.AigriCard
@@ -279,7 +278,12 @@ private fun ProfileCard(
                     val resolved = avatarUrl?.takeIf { it.isNotBlank() }?.let {
                         if (it.startsWith("http")) it else Net.absUrl(it)
                     }?.let { cacheBustAvatar(it, avatarVersion) }
-                    var avatarFailed by remember(resolved) { mutableStateOf(false) }
+                    val avatarModel = ImageRequest.Builder(LocalContext.current)
+                        .data(resolved ?: R.drawable.farmer_default)
+                        .placeholder(R.drawable.farmer_default)
+                        .error(R.drawable.farmer_default)
+                        .crossfade(true)
+                        .build()
                     Box(
                         modifier = Modifier
                             .size(60.dp)
@@ -290,21 +294,13 @@ private fun ProfileCard(
                     ) {
                         if (avatarUploading) {
                             CircularProgressIndicator(Modifier.size(28.dp), color = AigriAccent, strokeWidth = 2.dp)
-                        } else if (resolved != null && !avatarFailed) {
+                        } else {
                             AsyncImage(
-                                model = resolved,
+                                model = avatarModel,
                                 contentDescription = "Avatar",
                                 modifier = Modifier.size(60.dp).clip(CircleShape),
                                 contentScale = ContentScale.Crop,
-                                onError = { avatarFailed = true },
                             )
-                        } else {
-                            val initial = displayName.trim().firstOrNull()?.uppercaseChar()
-                            if (initial != null && initial.isLetterOrDigit()) {
-                                Text(initial.toString(), color = AigriAccentBright, fontWeight = FontWeight.W800, fontSize = 26.sp)
-                            } else {
-                                Icon(Icons.Filled.Person, contentDescription = null, tint = AigriAccentBright, modifier = Modifier.size(30.dp))
-                            }
                         }
                     }
                     // Camera badge — bottom-right of the 64dp box

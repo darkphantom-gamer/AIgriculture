@@ -15,6 +15,12 @@ data class LoginResp(
 )
 
 @Serializable
+data class MobileProbeResp(
+    val ok: Boolean = false,
+    val service: String = "",
+)
+
+@Serializable
 data class MeResp(
     val username: String? = null,
     val display_name: String? = null,

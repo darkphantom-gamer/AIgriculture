@@ -24,6 +24,8 @@ object Net {
 
     lateinit var client: OkHttpClient
         private set
+    lateinit var probeClient: OkHttpClient
+        private set
     lateinit var cookieJar: AppCookieJar
         private set
     private lateinit var prefs: ServerPrefs
@@ -42,6 +44,12 @@ object Net {
             .writeTimeout(30, TimeUnit.SECONDS)
             .pingInterval(25, TimeUnit.SECONDS) // keep FLORA / state sockets alive
             .retryOnConnectionFailure(true)
+            .build()
+        probeClient = client.newBuilder()
+            .callTimeout(3, TimeUnit.SECONDS)
+            .connectTimeout(2, TimeUnit.SECONDS)
+            .readTimeout(3, TimeUnit.SECONDS)
+            .writeTimeout(3, TimeUnit.SECONDS)
             .build()
         prefs.baseUrl?.let { setBaseUrl(it, persist = false) }
     }
@@ -80,14 +88,19 @@ object Net {
         val norm = normalize(input) ?: return false
         baseUrl = norm
         if (persist) prefs.baseUrl = norm
-        apiRef = Retrofit.Builder()
-            .baseUrl("$norm/")
-            .client(client)
+        apiRef = apiFor(norm, client)
+        return true
+    }
+
+    fun probeApi(norm: String): ApiService = apiFor(norm, probeClient)
+
+    private fun apiFor(norm: String, httpClient: OkHttpClient): ApiService =
+        Retrofit.Builder()
+            .baseUrl("${norm.trimEnd('/')}/")
+            .client(httpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(ApiService::class.java)
-        return true
-    }
 
     val api: ApiService
         get() = apiRef ?: error("Server not configured")

@@ -4,6 +4,7 @@ import android.os.Build
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -26,34 +27,64 @@ object AigriRepository {
     suspend fun probeServer(input: String): ApiResult<Unit> {
         val trimmed = input.trim()
         val hadScheme = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
-        if (!Net.setBaseUrl(input)) return ApiResult.Err("That doesn't look like a valid address.")
-        val first = tryProbe()
-        if (first is ApiResult.Ok || hadScheme) return first
-        // No scheme typed and the first guess failed — try the other scheme once,
-        // so a cloud domain on https (or a LAN box on http) connects either way.
-        val alt = Net.baseUrl?.let { Net.altScheme(it) }
-        if (alt != null && Net.setBaseUrl(alt)) {
-            val second = tryProbe()
-            if (second is ApiResult.Ok) return second
-            Net.setBaseUrl(input) // restore the original guess for the error message
+        val first = Net.normalize(input) ?: return ApiResult.Err("That doesn't look like a valid address.")
+        val candidates = buildList {
+            add(first)
+            if (!hadScheme) {
+                Net.altScheme(first)?.takeIf { it != first }?.let { add(it) }
+            }
         }
-        return first
+        var lastError: ApiResult.Err? = null
+        for (candidate in candidates) {
+            when (val result = tryProbe(candidate)) {
+                is ApiResult.Ok -> {
+                    if (Net.setBaseUrl(result.value, persist = true)) return ApiResult.Ok(Unit)
+                    return ApiResult.Err("Reached AIgriculture, but the server address was invalid.")
+                }
+                is ApiResult.Err -> lastError = result
+            }
+        }
+        return lastError ?: ApiResult.Err("Couldn't reach AIgriculture at that address.")
     }
 
-    private suspend fun tryProbe(): ApiResult<Unit> = try {
-        val resp = Net.api.probeLogin()
-        if (!resp.isSuccessful) {
-            ApiResult.Err("Server responded ${resp.code()} — check the address and port.")
+    private suspend fun tryProbe(baseUrl: String): ApiResult<String> = try {
+        val api = Net.probeApi(baseUrl)
+        val resp = api.mobileProbe()
+        val body = resp.body()
+        if (resp.isSuccessful && body?.ok == true && body.service.equals("aigriculture", true)) {
+            ApiResult.Ok(canonicalBase(resp.raw().request.url))
+        } else if (resp.code() == 404) {
+            tryLegacyProbe(api, baseUrl)
         } else {
-            val body = resp.body()?.string().orEmpty()
-            if (body.contains("AIgriculture", true) || body.contains("pmc_token", true) ||
-                body.contains("password", true)
-            ) ApiResult.Ok(Unit)
-            else ApiResult.Err("Reached a server, but it doesn't look like AIgriculture.")
+            ApiResult.Err("Server responded ${resp.code()} — check the address and port.", resp.code())
         }
     } catch (e: Exception) {
         ApiResult.Err(friendly(e))
     }
+
+    private suspend fun tryLegacyProbe(api: ApiService, baseUrl: String): ApiResult<String> = try {
+        val resp = api.probeLogin()
+        if (!resp.isSuccessful) {
+            ApiResult.Err("Server responded ${resp.code()} — check the address and port.", resp.code())
+        } else {
+            val body = resp.body()?.string().orEmpty()
+            if (body.contains("AIgriculture", true) || body.contains("pmc_token", true) ||
+                body.contains("password", true)
+            ) ApiResult.Ok(canonicalBase(resp.raw().request.url))
+            else ApiResult.Err("Reached a server, but it doesn't look like AIgriculture.")
+        }
+    } catch (_: Exception) {
+        ApiResult.Err("Couldn't reach AIgriculture at $baseUrl.")
+    }
+
+    private fun canonicalBase(url: HttpUrl): String =
+        url.newBuilder()
+            .encodedPath("/")
+            .query(null)
+            .fragment(null)
+            .build()
+            .toString()
+            .trimEnd('/')
 
     suspend fun login(username: String, password: String): ApiResult<String> = try {
         val device = listOf(Build.MANUFACTURER, Build.MODEL)

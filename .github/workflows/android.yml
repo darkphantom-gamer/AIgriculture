@@ -2,15 +2,16 @@ name: Android mobile app
 
 on:
   push:
+    branches: [main]
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
   pull_request:
     paths:
       - 'android/**'
-      
+      - '.github/workflows/android.yml'
   workflow_dispatch:
-   
+
 permissions:
   contents: read
 

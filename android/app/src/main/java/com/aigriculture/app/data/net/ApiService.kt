@@ -15,7 +15,11 @@ import retrofit2.http.Path
 
 interface ApiService {
 
-    // Public page — used to validate that an address is an AIgriculture server.
+    // Tiny public JSON endpoint used by the Android Connect screen.
+    @GET("api/mobile_probe")
+    suspend fun mobileProbe(): Response<MobileProbeResp>
+
+    // Legacy public page fallback for older AIgriculture servers.
     @GET("login")
     suspend fun probeLogin(): Response<ResponseBody>
 

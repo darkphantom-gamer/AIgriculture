@@ -636,8 +636,26 @@ def _avatar_url_usable(url: str | None) -> bool:
     return raw.startswith("http://") or raw.startswith("https://")
 
 
+def _default_avatar_url() -> str:
+    return _asset_url("farmer.png")
+
+
 def _profile_avatar_url(url: str | None) -> str:
-    return (url or "").strip() if _avatar_url_usable(url) else _asset_url("farmer.png")
+    return (url or "").strip() if _avatar_url_usable(url) else _default_avatar_url()
+
+
+def _refresh_default_avatar_urls(cur):
+    """Point default profile photos at the current assets/farmer.png hash."""
+    cur.execute(
+        """
+        UPDATE users
+        SET avatar_url=%s
+        WHERE avatar_url IS NULL
+           OR TRIM(avatar_url)=''
+           OR avatar_url LIKE '/img/%'
+        """,
+        (_default_avatar_url(),),
+    )
 
 
 def _resolve_opaque_asset(filename: str):
@@ -2639,7 +2657,7 @@ def _db_init():
                     # boots.
                     cur.execute(
                         "INSERT INTO users (username, password_hash, role, display_name, avatar_url) VALUES (%s, %s, %s, %s, %s)",
-                        (seed_user, ph, ADMIN_ROLE, seed_user, _asset_url("farmer.png"))
+                        (seed_user, ph, ADMIN_ROLE, seed_user, _default_avatar_url())
                     )
                     conn.commit()
                     if auto_generated:
@@ -2661,10 +2679,12 @@ def _db_init():
                 # overwrite display_name / avatar_url here because the operator
                 # may have customised them — that's a profile preference, not a
                 # boot-time invariant.
+                _refresh_default_avatar_urls(cur)
                 cur.execute(
                     "UPDATE users SET role=%s WHERE username=%s",
                     (ADMIN_ROLE, os.getenv("ADMIN_USER", "admin"))
                 )
+                conn.commit()
         hailo_logger.info("Database tables ready")
     except Exception as e:
         hailo_logger.error(f"DB init error: {e}")
@@ -3036,6 +3056,15 @@ def healthz(_user: str = Depends(require_auth)):
 def api_health(_user: str = Depends(require_auth)):
     return JSONResponse(_health_payload(), headers={"Cache-Control": "no-store"})
 
+@app.get("/api/mobile_probe")
+def api_mobile_probe():
+    return _no_store(JSONResponse({
+        "ok": True,
+        "service": "aigriculture",
+        "default_avatar_url": _default_avatar_url(),
+        "time": datetime.now().isoformat(timespec="seconds"),
+    }))
+
 @app.get("/api/me")
 def api_me(_user: str = Depends(require_auth)):
     profile = _get_user_profile(_user)
@@ -3077,21 +3106,33 @@ async def api_upload_avatar(file: UploadFile, _user: str = Depends(require_auth)
     tmp.write_bytes(data)
     digest = _file_hash(tmp)
     dest = avatar_root / f"{stem}_{digest}{ext}"
+    created = not dest.exists()
     if dest.exists():
         tmp.unlink(missing_ok=True)
     else:
         tmp.replace(dest)
     _AVATAR_ALIAS_CACHE.clear()
     new_url = _avatar_url(dest)
-    if MYSQL_AVAILABLE:
-        try:
-            conn = _db_conn()
-            with conn:
-                with conn.cursor() as cur:
-                    cur.execute("UPDATE users SET avatar_url=%s WHERE username=%s", (new_url, _user))
-        except Exception as exc:
-            hailo_logger.warning(f"avatar DB update failed: {exc}")
-    return JSONResponse({"ok": True, "avatar_url": new_url}, headers={"Cache-Control": "no-store"})
+    if not MYSQL_AVAILABLE:
+        if created:
+            dest.unlink(missing_ok=True)
+            _AVATAR_ALIAS_CACHE.clear()
+        return _no_store(JSONResponse({"ok": False, "error": "Profile database is unavailable."}, status_code=503))
+    try:
+        conn = _db_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE users SET avatar_url=%s WHERE username=%s", (new_url, _user))
+                if cur.rowcount != 1:
+                    raise RuntimeError("profile row was not updated")
+            conn.commit()
+    except Exception as exc:
+        if created:
+            dest.unlink(missing_ok=True)
+            _AVATAR_ALIAS_CACHE.clear()
+        hailo_logger.warning(f"avatar DB update failed: {exc}")
+        return _no_store(JSONResponse({"ok": False, "error": "Could not save profile photo."}, status_code=500))
+    return _no_store(JSONResponse({"ok": True, "avatar_url": new_url}))
 
 # ── Notification email API ─────────────────────────────────────────────────────
 @app.get("/api/notification_email")
@@ -5059,6 +5100,87 @@ def _inject_dashboard_integration_patch(html: str) -> str:
         return html.replace("</body>", DASHBOARD_INTEGRATION_PATCH + "</body>")
     return html + DASHBOARD_INTEGRATION_PATCH
 
+PROFILE_AVATAR_UPLOAD_PATCH = r"""
+<style data-aig-profile-avatar-upload>
+.settings-avatar-change-btn{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(20,184,166,.28);border-radius:13px;background:#ecfeff;color:#0f766e;font-family:'Plus Jakarta Sans',sans-serif;font-weight:850;font-size:.76rem;padding:10px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(13,148,136,.08);transition:transform .18s,background .18s,border-color .18s;white-space:nowrap}
+.settings-avatar-change-btn:hover{transform:translateY(-1px);background:#dffbf7;border-color:rgba(20,184,166,.46)}
+.settings-avatar-change-btn:disabled{opacity:.65;cursor:wait;transform:none}
+.settings-account-avatar{cursor:pointer}
+@media(max-width:768px){.settings-avatar-change-btn{width:100%;padding:12px 14px}}
+</style>
+<script data-aig-profile-avatar-upload>
+(function(){
+  if(window.__profileAvatarUploadPatch)return;
+  window.__profileAvatarUploadPatch=true;
+  var input=null,busy=false;
+  function toast(msg){if(typeof showToast==='function')showToast(msg);else alert(msg);}
+  function ensureInput(){
+    if(input)return input;
+    input=document.createElement('input');
+    input.type='file';input.accept='image/jpeg,image/png,image/webp,image/gif';input.style.display='none';
+    input.addEventListener('change',function(){
+      var file=input.files&&input.files[0];input.value='';
+      if(file)uploadAvatar(file);
+    });
+    document.body.appendChild(input);
+    return input;
+  }
+  function setBusy(on){
+    busy=on;
+    document.querySelectorAll('.settings-avatar-change-btn').forEach(function(btn){
+      btn.disabled=on;btn.textContent=on?'Uploading...':'Change photo';
+    });
+    document.querySelectorAll('.settings-account-avatar,.ava,.mobile-ava').forEach(function(img){
+      img.style.opacity=on?'.62':'';
+    });
+  }
+  async function uploadAvatar(file){
+    if(busy)return;
+    if(!/^image\/(jpeg|jpg|png|webp|gif)$/i.test(file.type||'')){toast('Choose a JPEG, PNG, WebP, or GIF image.');return;}
+    if(file.size>8*1024*1024){toast('That image is over 8 MB. Choose a smaller one.');return;}
+    setBusy(true);
+    try{
+      var fd=new FormData();fd.append('file',file,file.name||'avatar');
+      var r=await fetch('/api/upload_avatar',{method:'POST',body:fd,credentials:'same-origin',cache:'no-store'});
+      var data=await r.json().catch(function(){return{};});
+      if(!r.ok||!data.ok)throw new Error(data.error||('Upload failed ('+r.status+').'));
+      if(data.avatar_url&&typeof applyUserProfile==='function')applyUserProfile({avatar_url:data.avatar_url});
+      if(typeof loadCurrentUser==='function')await loadCurrentUser();
+      toast('Profile photo updated.');
+    }catch(err){toast(err&&err.message?err.message:'Could not save profile photo.');}
+    finally{setBusy(false);}
+  }
+  function pick(){if(!busy)ensureInput().click();}
+  function wire(){
+    var card=document.querySelector('.settings-account-card');
+    var avatar=document.querySelector('.settings-account-avatar');
+    if(card&&!card.querySelector('.settings-avatar-change-btn')){
+      var btn=document.createElement('button');
+      btn.type='button';btn.className='settings-avatar-change-btn';btn.textContent='Change photo';
+      btn.addEventListener('click',pick);
+      var logout=card.querySelector('.settings-logout-btn');
+      if(logout)logout.insertAdjacentElement('beforebegin',btn);else card.appendChild(btn);
+    }
+    if(avatar&&!avatar.dataset.avatarUploadWired){
+      avatar.dataset.avatarUploadWired='1';
+      avatar.title='Change profile photo';
+      avatar.addEventListener('click',pick);
+    }
+  }
+  if(document.readyState==='complete'||document.readyState==='interactive')setTimeout(wire,80);
+  else document.addEventListener('DOMContentLoaded',wire);
+  setInterval(wire,2000);
+})();
+</script>
+"""
+
+def _inject_profile_avatar_upload_patch(html: str) -> str:
+    if "__profileAvatarUploadPatch" in html:
+        return html
+    if "</body>" in html:
+        return html.replace("</body>", PROFILE_AVATAR_UPLOAD_PATCH + "</body>")
+    return html + PROFILE_AVATAR_UPLOAD_PATCH
+
 
 # Card spacing polish — applied UNCONDITIONALLY since the original theme has no
 # matching guard token. Adds breathing room between cards / sections so a tiny
@@ -5091,7 +5213,9 @@ async def dashboard(_user: str = Depends(require_auth)):
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
         html = _inject_spacing_polish(
-            _inject_dashboard_integration_patch(_inject_sensor_ui_patch(html))
+            _inject_profile_avatar_upload_patch(
+                _inject_dashboard_integration_patch(_inject_sensor_ui_patch(html))
+            )
         )
         return _no_store(HTMLResponse(_apply_content_hashed_assets(html)))
     return _no_store(HTMLResponse("<h1>dashboard.html not found alongside main.py</h1>",
