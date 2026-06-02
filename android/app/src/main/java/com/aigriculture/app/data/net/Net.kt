@@ -100,6 +100,8 @@ object Net {
         return "$ws/${path.trimStart('/')}"
     }
 
+    fun cookieHeader(url: String): String? = cookieJar.headerFor(url)
+
     fun absUrl(path: String): String {
         val b = baseUrl ?: return path
         return "$b/${path.trimStart('/')}"

@@ -26,7 +26,9 @@ class StateSocket {
         _status.tryEmit(WsStatus.CONNECTING)
         val url = Net.wsUrl("ws")
         if (url.isEmpty()) { _status.tryEmit(WsStatus.ERROR); return }
-        val req = Request.Builder().url(url).build()
+        val reqBuilder = Request.Builder().url(url)
+        Net.cookieHeader(url)?.let { reqBuilder.header("Cookie", it) }
+        val req = reqBuilder.build()
         ws = Net.client.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 _status.tryEmit(WsStatus.OPEN)

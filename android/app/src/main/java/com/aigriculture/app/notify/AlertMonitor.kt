@@ -1,6 +1,8 @@
 package com.aigriculture.app.notify
 
 import android.content.Context
+import com.aigriculture.app.data.net.AigriRepository
+import com.aigriculture.app.data.net.ApiResult
 import com.aigriculture.app.data.net.StateMsg
 import com.aigriculture.app.data.net.StateSocket
 import com.aigriculture.app.data.net.WsStatus
@@ -8,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -28,6 +31,8 @@ import java.util.Locale
 object AlertMonitor {
     private const val DRY_THRESHOLD = 45.0
     private const val DRY_REPEAT_MS = 30 * 60 * 1000L
+    private const val STATE_POLL_MS = 2_000L
+    private const val SOCKET_STALE_MS = 4_500L
 
     private var scope: CoroutineScope? = null
     private var socket: StateSocket? = null
@@ -46,6 +51,7 @@ object AlertMonitor {
     private var prevFarmCamOn: Boolean? = null
     private var prevSocketStatus: WsStatus? = null
     private var socketPrimed = false
+    private var lastSocketStateAt = 0L
     private var lastScanSig: String? = null
     private val lastDryNotify = mutableMapOf<String, Long>()
 
@@ -60,8 +66,14 @@ object AlertMonitor {
         val cs = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         socket = s
         scope = cs
-        cs.launch { s.states.collect { onState(it) } }
+        cs.launch {
+            s.states.collect {
+                lastSocketStateAt = System.currentTimeMillis()
+                onState(it)
+            }
+        }
         cs.launch { s.status.collect { onSocketStatus(it) } }
+        cs.launch { pollStateFallback() }
         s.connect()
     }
 
@@ -82,8 +94,24 @@ object AlertMonitor {
         prevFarmCamOn = null
         prevSocketStatus = null
         socketPrimed = false
+        lastSocketStateAt = 0L
         lastScanSig = null
         lastDryNotify.clear()
+    }
+
+    private suspend fun pollStateFallback() {
+        while (true) {
+            delay(STATE_POLL_MS)
+            val staleSocket = System.currentTimeMillis() - lastSocketStateAt > SOCKET_STALE_MS
+            if (!staleSocket) continue
+            when (val result = AigriRepository.state()) {
+                is ApiResult.Ok -> onState(result.value)
+                is ApiResult.Err -> {
+                    // Keep trying. The Settings test button verifies the phone
+                    // notification path; this loop only handles farm state delivery.
+                }
+            }
+        }
     }
 
     private fun onSocketStatus(status: WsStatus) {

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -58,6 +59,14 @@ class AppCookieJar(context: Context) : CookieJar {
         } else {
             store.remove(host); prefs.edit().remove("h_$host").apply()
         }
+    }
+
+    @Synchronized
+    fun headerFor(url: String): String? {
+        val parsed = url.toHttpUrlOrNull() ?: return null
+        return loadForRequest(parsed)
+            .joinToString("; ") { "${it.name}=${it.value}" }
+            .takeIf { it.isNotBlank() }
     }
 
     private fun persist(host: String) {
