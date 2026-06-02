@@ -98,9 +98,11 @@ object NotificationHelper {
         body: String,
         threat: Boolean = false,
         picture: Bitmap? = null,
-    ): Boolean {
+        id: Int? = null,
+    ): Int? {
         ensureChannel(context)
-        if (!canPostNotifications(context)) return false
+        if (!canPostNotifications(context)) return null
+        val update = id != null
         val manager = NotificationManagerCompat.from(context)
         val builder = NotificationCompat.Builder(
             context,
@@ -112,12 +114,14 @@ object NotificationHelper {
             .setPriority(if (threat) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(if (threat) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
-            .setOnlyAlertOnce(false)
-            .setSilent(false)
+            .setOnlyAlertOnce(update)
+            .setSilent(update)
             .apply {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                    if (threat) setSound(threatSoundUri(context))
-                    else setDefaults(Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)
+                    if (!update) {
+                        if (threat) setSound(threatSoundUri(context))
+                        else setDefaults(Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)
+                    }
                 }
             }
         if (picture != null) {
@@ -133,17 +137,18 @@ object NotificationHelper {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
         }
         try {
-            manager.notify(nextId++, builder.build())
-            return true
+            val notificationId = id ?: nextId++
+            manager.notify(notificationId, builder.build())
+            return notificationId
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS not granted (Android 13+) — ignore silently.
-            return false
+            return null
         }
     }
 
-    fun notifyThreat(context: Context, title: String, body: String, picture: Bitmap? = null) {
+    fun notifyThreat(context: Context, title: String, body: String, picture: Bitmap? = null): Int? {
         playThreatSound(context)
-        notify(context, title, body, threat = true, picture = picture)
+        return notify(context, title, body, threat = true, picture = picture)
     }
 
     private fun threatSoundUri(context: Context): Uri =

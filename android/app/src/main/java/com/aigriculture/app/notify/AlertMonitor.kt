@@ -25,6 +25,7 @@ import okhttp3.Request
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * App-wide alert watcher. Keeps one /ws connection open for the logged-in app
@@ -37,6 +38,9 @@ object AlertMonitor {
     private const val DRY_REPEAT_MS = 30 * 60 * 1000L
     private const val STATE_POLL_MS = 2_000L
     private const val SOCKET_STALE_MS = 4_500L
+    private const val SNAPSHOT_TIMEOUT_MS = 1_500L
+    private const val NOTIFICATION_IMAGE_MAX_W = 1024
+    private const val NOTIFICATION_IMAGE_MAX_H = 768
 
     private var scope: CoroutineScope? = null
     private var socket: StateSocket? = null
@@ -111,8 +115,7 @@ object AlertMonitor {
             when (val result = AigriRepository.state()) {
                 is ApiResult.Ok -> onState(result.value)
                 is ApiResult.Err -> {
-                    // Keep trying. The Settings test button verifies the phone
-                    // notification path; this loop only handles farm state delivery.
+                    // Keep trying; state delivery can recover after network/server blips.
                 }
             }
         }
@@ -170,11 +173,11 @@ object AlertMonitor {
             val freshThreats = threats - prevThreats
             if (freshThreats.isNotEmpty()) {
                 val names = freshThreats.joinToString(", ") { threatLabel(it) }
-                NotificationHelper.notifyThreat(
+                notifyThreatWithSnapshot(
                     ctx,
                     "Security threat detected",
                     "$names near the farm · ${now()}",
-                    picture = snapshot("api/security/snapshot.jpg"),
+                    "api/security/snapshot.jpg",
                 )
             }
             prevThreats = threats
@@ -224,11 +227,11 @@ object AlertMonitor {
             prevFarmCamOn = s.farm_cam_on
 
             if (farmCameraOk != null && prevFarmCameraOk != null && farmCameraOk != prevFarmCameraOk) {
-                NotificationHelper.notify(
+                notifyWithSnapshot(
                     ctx,
                     "FarmMonitor camera",
                     if (farmCameraOk) "Camera feed recovered · ${now()}" else "Camera feed is offline · ${now()}",
-                    picture = snapshot("api/farm_monitor/snapshot.jpg"),
+                    "api/farm_monitor/snapshot.jpg",
                 )
             }
             prevFarmCameraOk = farmCameraOk
@@ -244,11 +247,11 @@ object AlertMonitor {
 
             if (scanSig != null && scanSig != lastScanSig) {
                 val msg = scanMessage(s) ?: "A new plant-health scan is ready."
-                NotificationHelper.notify(
+                notifyWithSnapshot(
                     ctx,
                     "Farm scan complete",
                     "$msg · ${now()}",
-                    picture = snapshot("api/farm_monitor/snapshot.jpg"),
+                    "api/farm_monitor/snapshot.jpg",
                 )
             }
             if (scanSig != null) lastScanSig = scanSig
@@ -286,11 +289,11 @@ object AlertMonitor {
     ) {
         if (threats.isNotEmpty()) {
             val names = threats.joinToString(", ") { threatLabel(it) }
-            NotificationHelper.notifyThreat(
+            notifyThreatWithSnapshot(
                 ctx,
                 "Security threat active",
                 "$names near the farm · ${now()}",
-                picture = snapshot("api/security/snapshot.jpg"),
+                "api/security/snapshot.jpg",
             )
         }
         if (dryPlants.isNotEmpty()) {
@@ -306,11 +309,11 @@ object AlertMonitor {
             "error" -> NotificationHelper.notify(ctx, "FarmMonitor needs attention", "${farmMessage(s) ?: "Scan failed"} · ${now()}")
         }
         if (farmCameraOk == false) {
-            NotificationHelper.notify(
+            notifyWithSnapshot(
                 ctx,
                 "FarmMonitor camera",
                 "Camera feed is offline · ${now()}",
-                picture = snapshot("api/farm_monitor/snapshot.jpg"),
+                "api/farm_monitor/snapshot.jpg",
             )
         }
     }
@@ -329,16 +332,65 @@ object AlertMonitor {
 
     private fun now(): String = clock.format(Date())
 
+    private fun notifyThreatWithSnapshot(ctx: Context, title: String, body: String, path: String) {
+        val id = NotificationHelper.notifyThreat(ctx, title, body)
+        updateNotificationWithSnapshot(id, ctx, title, body, path, threat = true)
+    }
+
+    private fun notifyWithSnapshot(ctx: Context, title: String, body: String, path: String) {
+        val id = NotificationHelper.notify(ctx, title, body)
+        updateNotificationWithSnapshot(id, ctx, title, body, path, threat = false)
+    }
+
+    private fun updateNotificationWithSnapshot(
+        id: Int?,
+        ctx: Context,
+        title: String,
+        body: String,
+        path: String,
+        threat: Boolean,
+    ) {
+        if (id == null) return
+        scope?.launch(Dispatchers.IO) {
+            val picture = snapshot(path) ?: return@launch
+            NotificationHelper.notify(ctx, title, body, threat = threat, picture = picture, id = id)
+        }
+    }
+
     private fun snapshot(path: String): Bitmap? = try {
         val url = Net.absUrl(path)
         val reqBuilder = Request.Builder().url(url)
         Net.cookieHeader(url)?.let { reqBuilder.header("Cookie", it) }
-        Net.client.newCall(reqBuilder.build()).execute().use { resp ->
-            if (!resp.isSuccessful) return null
-            resp.body?.byteStream()?.use { BitmapFactory.decodeStream(it) }
+        val client = Net.client.newBuilder()
+            .connectTimeout(SNAPSHOT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(SNAPSHOT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .writeTimeout(SNAPSHOT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .build()
+        client.newCall(reqBuilder.build()).execute().use { resp ->
+            if (!resp.isSuccessful) null
+            else resp.body?.bytes()?.let { decodeNotificationBitmap(it) }
         }
     } catch (_: Exception) {
         null
+    }
+
+    private fun decodeNotificationBitmap(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sample = 1
+        while (
+            bounds.outWidth / sample > NOTIFICATION_IMAGE_MAX_W ||
+            bounds.outHeight / sample > NOTIFICATION_IMAGE_MAX_H
+        ) {
+            sample *= 2
+        }
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
     }
 
     private fun str(el: JsonElement?): String? =

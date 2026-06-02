@@ -100,7 +100,12 @@ object Net {
         return "$ws/${path.trimStart('/')}"
     }
 
-    fun cookieHeader(url: String): String? = cookieJar.headerFor(url)
+    fun cookieHeader(url: String): String? {
+        val httpUrl = url
+            .replaceFirst("wss://", "https://")
+            .replaceFirst("ws://", "http://")
+        return cookieJar.headerFor(httpUrl)
+    }
 
     fun hasSessionCookie(): Boolean {
         val b = baseUrl ?: return false

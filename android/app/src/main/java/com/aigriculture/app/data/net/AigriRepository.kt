@@ -265,7 +265,7 @@ object AigriRepository {
     private suspend fun <T> call(block: suspend () -> T): ApiResult<T> = try {
         ApiResult.Ok(block())
     } catch (e: Exception) {
-        ApiResult.Err(friendly(e))
+        ApiResult.Err(friendly(e), if (e is HttpException) e.code() else 0)
     }
 
     private fun friendly(e: Throwable): String = when (e) {

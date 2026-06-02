@@ -2568,6 +2568,17 @@ def _ensure_user_columns(cur):
     if "avatar_url" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) NULL")
 
+def _ensure_session_columns(cur):
+    """Add client metadata columns for existing session tables."""
+    cur.execute("SHOW COLUMNS FROM sessions")
+    cols = {row.get("Field") for row in cur.fetchall()}
+    if "client" not in cols:
+        cur.execute("ALTER TABLE sessions ADD COLUMN client VARCHAR(48) NOT NULL DEFAULT 'web'")
+    if "device" not in cols:
+        cur.execute("ALTER TABLE sessions ADD COLUMN device VARCHAR(96) NULL")
+    if "last_seen" not in cols:
+        cur.execute("ALTER TABLE sessions ADD COLUMN last_seen DATETIME NULL")
+
 def _db_init():
     """Create database, user table, and seed default admin if needed."""
     if not MYSQL_AVAILABLE:
@@ -2593,7 +2604,10 @@ def _db_init():
                         id          INT AUTO_INCREMENT PRIMARY KEY,
                         username    VARCHAR(50) NOT NULL,
                         jti         CHAR(64) UNIQUE NOT NULL,
+                        client      VARCHAR(48) NOT NULL DEFAULT 'web',
+                        device      VARCHAR(96) NULL,
                         issued_at   DATETIME NOT NULL,
+                        last_seen   DATETIME NULL,
                         expires_at  DATETIME NOT NULL,
                         revoked     TINYINT(1) DEFAULT 0,
                         INDEX idx_jti (jti)
@@ -2601,6 +2615,7 @@ def _db_init():
                 """)
                 conn.commit()
                 _ensure_user_columns(cur)
+                _ensure_session_columns(cur)
                 conn.commit()
                 # Seed default admin if table is empty.
                 # If ADMIN_PASS is unset/blank, generate a random one and print
@@ -2707,7 +2722,7 @@ def _verify_credentials(username: str, password: str):
         hailo_logger.error(f"DB verify error: {e}")
         return None
 
-def _create_token(username: str) -> tuple[str, str]:
+def _create_token(username: str, client: str = "web", device: str = "") -> tuple[str, str]:
     """Returns (jwt_string, jti)."""
     from datetime import timezone
     jti = _secrets.token_hex(32)
@@ -2719,9 +2734,14 @@ def _create_token(username: str) -> tuple[str, str]:
         conn = _db_conn()
         with conn:
             with conn.cursor() as cur:
+                now = datetime.now()
                 cur.execute(
-                    "INSERT INTO sessions (username, jti, issued_at, expires_at) VALUES (%s,%s,%s,%s)",
-                    (username, jti, datetime.now(), datetime.now() + timedelta(hours=JWT_EXPIRE_HRS))
+                    """
+                    INSERT INTO sessions
+                        (username, jti, client, device, issued_at, last_seen, expires_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (username, jti, client, device or None, now, now, now + timedelta(hours=JWT_EXPIRE_HRS))
                 )
             conn.commit()
     except Exception as e:
@@ -2750,6 +2770,26 @@ def _is_token_revoked(jti: str) -> bool:
     except Exception as _e:
         hailo_logger.error(f"DB token-revocation check failed: {_e} — treating as revoked")
         return True   # fail closed
+
+def _touch_session(jti: str):
+    """Refresh session activity, throttled to avoid DB churn from state polling."""
+    try:
+        now = datetime.now()
+        cutoff = now - timedelta(seconds=60)
+        conn = _db_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE sessions
+                    SET last_seen=%s
+                    WHERE jti=%s AND (last_seen IS NULL OR last_seen < %s)
+                    """,
+                    (now, jti, cutoff),
+                )
+            conn.commit()
+    except Exception as _e:
+        hailo_logger.warning(f"DB session touch skipped: {_e}")
 
 # ── Rate limiter ───────────────────────────────────────────────────────────────
 def _check_rate_limit(ip: str) -> bool:
@@ -2922,6 +2962,7 @@ async def require_auth(request: Request):
     jti = payload.get("jti", "")
     if _is_token_revoked(jti):
         _fail()
+    _touch_session(jti)
     return payload["sub"]
 
 async def require_admin(_user: str = Depends(require_auth)):
@@ -3127,12 +3168,12 @@ async def auth_login(request: Request,
         return _no_store(JSONResponse({"ok": False,
                                        "error": "Invalid credentials."}, status_code=401))
 
-    _reset_rate_limit(ip)
-    token, jti = await asyncio.get_running_loop().run_in_executor(
-        None, _create_token, user["username"]
-    )
     login_client = re.sub(r"[^A-Za-z0-9_. -]+", "", client or "web").strip()[:48] or "web"
     login_device = re.sub(r"[^A-Za-z0-9_. -]+", "", device or "").strip()[:96]
+    _reset_rate_limit(ip)
+    token, jti = await asyncio.get_running_loop().run_in_executor(
+        None, _create_token, user["username"], login_client, login_device
+    )
     hailo_logger.info(
         f"login: {user['username']} via {login_client}"
         + (f" ({login_device})" if login_device else "")
@@ -3858,7 +3899,7 @@ def security_snapshot(_user: str = Depends(require_auth)):
     with frame_lock:
         frame = latest_jpeg
     if not frame:
-        return JSONResponse({"ok": False, "error": "No security camera frame available"}, status_code=404)
+        return _no_store(JSONResponse({"ok": False, "error": "No security camera frame available"}, status_code=404))
     return Response(content=frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 @app.get("/api/farm_monitor/snapshot.jpg")
@@ -3866,7 +3907,7 @@ def farm_monitor_snapshot(_user: str = Depends(require_auth)):
     with farm_frame_lock:
         frame = farm_latest_jpeg
     if not frame:
-        return JSONResponse({"ok": False, "error": "No FarmMonitor frame available"}, status_code=404)
+        return _no_store(JSONResponse({"ok": False, "error": "No FarmMonitor frame available"}, status_code=404))
     return Response(content=frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 @app.get("/api/farm_monitor/status")
