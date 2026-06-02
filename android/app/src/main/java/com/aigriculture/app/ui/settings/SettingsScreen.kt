@@ -64,7 +64,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.aigriculture.app.data.net.Net
-import com.aigriculture.app.notify.NotificationHelper
 import com.aigriculture.app.ui.common.AccentCard
 import com.aigriculture.app.ui.common.AigriCard
 import com.aigriculture.app.ui.common.AigriTextField
@@ -96,7 +95,6 @@ fun SettingsScreen(
 ) {
     val ui by vm.ui.collectAsState()
     val context = LocalContext.current
-    val phoneAlertsEnabled = NotificationHelper.canPostNotifications(context)
 
     LaunchedEffect(ui.toast) {
         if (ui.toast != null) { delay(3500); vm.clearToast() }
@@ -235,29 +233,6 @@ fun SettingsScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    if (phoneAlertsEnabled) "Phone alerts are enabled for this device."
-                    else "Phone alerts are blocked by Android notification settings.",
-                    color = if (phoneAlertsEnabled) AigriOk else AigriWarn,
-                    fontSize = 12.sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                PrimaryButton(
-                    text = if (phoneAlertsEnabled) "Test phone alert" else "Enable phone alerts",
-                    onClick = {
-                        if (phoneAlertsEnabled) {
-                            NotificationHelper.notifyThreat(
-                                context,
-                                "Phone alert test",
-                                "Security threat sound and notification test.",
-                            )
-                        } else {
-                            NotificationHelper.openNotificationSettings(context)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
 
             Spacer(Modifier.height(4.dp))

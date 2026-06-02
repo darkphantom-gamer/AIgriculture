@@ -1,8 +1,11 @@
 package com.aigriculture.app.notify
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.aigriculture.app.data.net.AigriRepository
 import com.aigriculture.app.data.net.ApiResult
+import com.aigriculture.app.data.net.Net
 import com.aigriculture.app.data.net.StateMsg
 import com.aigriculture.app.data.net.StateSocket
 import com.aigriculture.app.data.net.WsStatus
@@ -18,6 +21,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import okhttp3.Request
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -166,7 +170,12 @@ object AlertMonitor {
             val freshThreats = threats - prevThreats
             if (freshThreats.isNotEmpty()) {
                 val names = freshThreats.joinToString(", ") { threatLabel(it) }
-                NotificationHelper.notifyThreat(ctx, "Security threat detected", "$names near the farm · ${now()}")
+                NotificationHelper.notifyThreat(
+                    ctx,
+                    "Security threat detected",
+                    "$names near the farm · ${now()}",
+                    picture = snapshot("api/security/snapshot.jpg"),
+                )
             }
             prevThreats = threats
 
@@ -219,6 +228,7 @@ object AlertMonitor {
                     ctx,
                     "FarmMonitor camera",
                     if (farmCameraOk) "Camera feed recovered · ${now()}" else "Camera feed is offline · ${now()}",
+                    picture = snapshot("api/farm_monitor/snapshot.jpg"),
                 )
             }
             prevFarmCameraOk = farmCameraOk
@@ -234,7 +244,12 @@ object AlertMonitor {
 
             if (scanSig != null && scanSig != lastScanSig) {
                 val msg = scanMessage(s) ?: "A new plant-health scan is ready."
-                NotificationHelper.notify(ctx, "Farm scan complete", "$msg · ${now()}")
+                NotificationHelper.notify(
+                    ctx,
+                    "Farm scan complete",
+                    "$msg · ${now()}",
+                    picture = snapshot("api/farm_monitor/snapshot.jpg"),
+                )
             }
             if (scanSig != null) lastScanSig = scanSig
         } catch (_: Exception) {
@@ -271,7 +286,12 @@ object AlertMonitor {
     ) {
         if (threats.isNotEmpty()) {
             val names = threats.joinToString(", ") { threatLabel(it) }
-            NotificationHelper.notifyThreat(ctx, "Security threat active", "$names near the farm · ${now()}")
+            NotificationHelper.notifyThreat(
+                ctx,
+                "Security threat active",
+                "$names near the farm · ${now()}",
+                picture = snapshot("api/security/snapshot.jpg"),
+            )
         }
         if (dryPlants.isNotEmpty()) {
             val labels = dryPlants.take(3).joinToString(", ") { plantLabel(s, it) }
@@ -286,7 +306,12 @@ object AlertMonitor {
             "error" -> NotificationHelper.notify(ctx, "FarmMonitor needs attention", "${farmMessage(s) ?: "Scan failed"} · ${now()}")
         }
         if (farmCameraOk == false) {
-            NotificationHelper.notify(ctx, "FarmMonitor camera", "Camera feed is offline · ${now()}")
+            NotificationHelper.notify(
+                ctx,
+                "FarmMonitor camera",
+                "Camera feed is offline · ${now()}",
+                picture = snapshot("api/farm_monitor/snapshot.jpg"),
+            )
         }
     }
 
@@ -303,6 +328,18 @@ object AlertMonitor {
     }
 
     private fun now(): String = clock.format(Date())
+
+    private fun snapshot(path: String): Bitmap? = try {
+        val url = Net.absUrl(path)
+        val reqBuilder = Request.Builder().url(url)
+        Net.cookieHeader(url)?.let { reqBuilder.header("Cookie", it) }
+        Net.client.newCall(reqBuilder.build()).execute().use { resp ->
+            if (!resp.isSuccessful) return null
+            resp.body?.byteStream()?.use { BitmapFactory.decodeStream(it) }
+        }
+    } catch (_: Exception) {
+        null
+    }
 
     private fun str(el: JsonElement?): String? =
         (el as? JsonPrimitive)?.contentOrNull

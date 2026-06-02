@@ -102,6 +102,11 @@ object Net {
 
     fun cookieHeader(url: String): String? = cookieJar.headerFor(url)
 
+    fun hasSessionCookie(): Boolean {
+        val b = baseUrl ?: return false
+        return cookieJar.headerFor(b)?.contains("pmc_token=") == true
+    }
+
     fun absUrl(path: String): String {
         val b = baseUrl ?: return path
         return "$b/${path.trimStart('/')}"

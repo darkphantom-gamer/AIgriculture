@@ -3103,7 +3103,9 @@ async def login_page(request: Request):
 @app.post("/auth/login")
 async def auth_login(request: Request,
                      username: str = Form(...),
-                     password: str = Form(...)):
+                     password: str = Form(...),
+                     client: str = Form("web"),
+                     device: str = Form("")):
     ip = request.client.host if request.client else "unknown"
 
     # IP-level rate limit
@@ -3129,8 +3131,15 @@ async def auth_login(request: Request,
     token, jti = await asyncio.get_running_loop().run_in_executor(
         None, _create_token, user["username"]
     )
+    login_client = re.sub(r"[^A-Za-z0-9_. -]+", "", client or "web").strip()[:48] or "web"
+    login_device = re.sub(r"[^A-Za-z0-9_. -]+", "", device or "").strip()[:96]
+    hailo_logger.info(
+        f"login: {user['username']} via {login_client}"
+        + (f" ({login_device})" if login_device else "")
+        + f" from {ip}"
+    )
 
-    resp = JSONResponse({"ok": True, "username": user["username"]})
+    resp = JSONResponse({"ok": True, "username": user["username"], "client": login_client})
     resp.set_cookie(
         key="pmc_token",
         value=token,
@@ -3843,6 +3852,22 @@ def stream(_user: str = Depends(require_auth)):
 def farm_stream(_user: str = Depends(require_auth)):
     return StreamingResponse(_gen_farm_frames(),
                              media_type="multipart/x-mixed-replace; boundary=frame")
+
+@app.get("/api/security/snapshot.jpg")
+def security_snapshot(_user: str = Depends(require_auth)):
+    with frame_lock:
+        frame = latest_jpeg
+    if not frame:
+        return JSONResponse({"ok": False, "error": "No security camera frame available"}, status_code=404)
+    return Response(content=frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+@app.get("/api/farm_monitor/snapshot.jpg")
+def farm_monitor_snapshot(_user: str = Depends(require_auth)):
+    with farm_frame_lock:
+        frame = farm_latest_jpeg
+    if not frame:
+        return JSONResponse({"ok": False, "error": "No FarmMonitor frame available"}, status_code=404)
+    return Response(content=frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 @app.get("/api/farm_monitor/status")
 def farm_monitor_status(_user: str = Depends(require_auth)):

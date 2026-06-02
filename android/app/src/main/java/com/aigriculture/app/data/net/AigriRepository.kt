@@ -1,5 +1,6 @@
 package com.aigriculture.app.data.net
 
+import android.os.Build
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -55,7 +56,11 @@ object AigriRepository {
     }
 
     suspend fun login(username: String, password: String): ApiResult<String> = try {
-        val resp = Net.api.login(username, password)
+        val device = listOf(Build.MANUFACTURER, Build.MODEL)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .ifBlank { "Android" }
+        val resp = Net.api.login(username, password, client = "android_apk", device = device)
         val body = resp.body()
         when {
             resp.isSuccessful && body?.ok == true -> ApiResult.Ok(body.username ?: username)

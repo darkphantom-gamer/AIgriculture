@@ -8,6 +8,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
@@ -91,18 +92,23 @@ object NotificationHelper {
         }
     }
 
-    fun notify(context: Context, title: String, body: String, threat: Boolean = false): Boolean {
+    fun notify(
+        context: Context,
+        title: String,
+        body: String,
+        threat: Boolean = false,
+        picture: Bitmap? = null,
+    ): Boolean {
         ensureChannel(context)
         if (!canPostNotifications(context)) return false
         val manager = NotificationManagerCompat.from(context)
-        val notification = NotificationCompat.Builder(
+        val builder = NotificationCompat.Builder(
             context,
             if (threat) CHANNEL_THREATS else CHANNEL_EVENTS,
         )
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(if (threat) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(if (threat) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
@@ -114,9 +120,20 @@ object NotificationHelper {
                     else setDefaults(Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)
                 }
             }
-            .build()
+        if (picture != null) {
+            builder
+                .setLargeIcon(picture)
+                .setStyle(
+                    NotificationCompat.BigPictureStyle()
+                        .bigPicture(picture)
+                        .bigLargeIcon(null as Bitmap?)
+                        .setSummaryText(body),
+                )
+        } else {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        }
         try {
-            manager.notify(nextId++, notification)
+            manager.notify(nextId++, builder.build())
             return true
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS not granted (Android 13+) — ignore silently.
@@ -124,9 +141,9 @@ object NotificationHelper {
         }
     }
 
-    fun notifyThreat(context: Context, title: String, body: String) {
+    fun notifyThreat(context: Context, title: String, body: String, picture: Bitmap? = null) {
         playThreatSound(context)
-        notify(context, title, body, threat = true)
+        notify(context, title, body, threat = true, picture = picture)
     }
 
     private fun threatSoundUri(context: Context): Uri =

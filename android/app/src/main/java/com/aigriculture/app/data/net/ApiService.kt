@@ -24,6 +24,8 @@ interface ApiService {
     suspend fun login(
         @Field("username") username: String,
         @Field("password") password: String,
+        @Field("client") client: String = "android_apk",
+        @Field("device") device: String = "",
     ): Response<LoginResp>
 
     @POST("auth/logout")

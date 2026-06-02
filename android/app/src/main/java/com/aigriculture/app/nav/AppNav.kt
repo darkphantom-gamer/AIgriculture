@@ -18,7 +18,11 @@ object Routes {
 @Composable
 fun AppNav() {
     val nav = rememberNavController()
-    val start = if (Net.hasBaseUrl()) Routes.LOGIN else Routes.CONNECT
+    val start = when {
+        !Net.hasBaseUrl() -> Routes.CONNECT
+        Net.hasSessionCookie() -> Routes.SHELL
+        else -> Routes.LOGIN
+    }
 
     NavHost(navController = nav, startDestination = start) {
         composable(Routes.CONNECT) {
