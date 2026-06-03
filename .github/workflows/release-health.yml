@@ -1,0 +1,85 @@
+name: Release health
+
+on:
+  workflow_run:
+    workflows: ["Android mobile app"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: app-v0.1.0
+  RELEASE_APK_NAME: AIgriculture.apk
+  MIN_APK_BYTES: "10000000"
+
+jobs:
+  beta-apk:
+    name: Verify beta APK release
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --json assets,url \
+            --jq '.assets[] | select(.name == env.RELEASE_APK_NAME) | [.name, .size, .updatedAt, .url] | @tsv' \
+            > /tmp/release-apk.tsv
+
+          if [ ! -s /tmp/release-apk.tsv ]; then
+            echo "::error::Release $RELEASE_TAG is missing $RELEASE_APK_NAME"
+            exit 1
+          fi
+
+          IFS="$(printf '\t')" read -r name size updated url < /tmp/release-apk.tsv
+          if [ "$size" -lt "$MIN_APK_BYTES" ]; then
+            echo "::error::Release APK is too small: $size bytes"
+            exit 1
+          fi
+
+          {
+            echo "## Beta APK release"
+            echo
+            echo "- Asset: $name"
+            echo "- Size: $size bytes"
+            echo "- Updated: $updated"
+            echo "- URL: $url"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify README download links
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          tag = os.environ["RELEASE_TAG"]
+          apk = os.environ["RELEASE_APK_NAME"]
+          apk_url = f"https://github.com/{repo}/releases/download/{tag}/{apk}"
+          release_url = f"https://github.com/{repo}/releases/tag/{tag}"
+          files = [
+              pathlib.Path("README.md"),
+              pathlib.Path("docs/hi/README.md"),
+              pathlib.Path("docs/ja/README.md"),
+              pathlib.Path("docs/ru/README.md"),
+              pathlib.Path("docs/zh/README.md"),
+          ]
+          missing = []
+          for path in files:
+              text = path.read_text(encoding="utf-8")
+              if apk_url not in text:
+                  missing.append(f"{path}: missing APK download link")
+              if release_url not in text:
+                  missing.append(f"{path}: missing release page link")
+          if missing:
+              for item in missing:
+                  print(f"::error::{item}")
+              sys.exit(1)
+          print("README download links point at the beta release and APK asset.")
+          PY

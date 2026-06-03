@@ -1,0 +1,111 @@
+name: Leak check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan committed files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Detect obvious committed secrets
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          binary_ext = {
+              ".apk", ".bin", ".db", ".gif", ".hef", ".ico", ".jpeg", ".jpg",
+              ".mp3", ".png", ".pt", ".svg", ".webp", ".zip",
+          }
+          skip_exact = {
+              ".github/workflows/leak-check.yml",
+              ".env.example",
+              "config.example.yaml",
+              "wiring.example.yaml",
+          }
+          skip_dirs = {
+              ".git",
+              "__pycache__",
+              "Profile_Avatars",
+              "Storage_Data",
+              "runtime",
+          }
+          assignment = re.compile(
+              r"(?i)(api[_-]?key|password|passwd|secret|token|private[_-]?key)"
+              r"\s*[:=]\s*['\"]?([^'\"\s#]{16,})"
+          )
+          assignment_ext = {
+              ".cfg",
+              ".conf",
+              ".env",
+              ".ini",
+              ".json",
+              ".properties",
+              ".toml",
+              ".yaml",
+              ".yml",
+          }
+          patterns = [
+              ("private key block", re.compile(r"BEGIN [A-Z ]{0,40}PRIVATE KEY")),
+              ("aws access key", re.compile(r"AKIA[0-9A-Z]{16}")),
+              ("github token", re.compile(r"gh[pousr]_[A-Za-z0-9_]{36,}")),
+              ("google api key", re.compile(r"AIza[0-9A-Za-z_-]{35}")),
+              ("slack token", re.compile(r"xox[baprs]-[A-Za-z0-9-]{20,}")),
+          ]
+          allow_values = {
+              "changeme",
+              "change-me",
+              "example",
+              "example_password",
+              "placeholder",
+              "your_password_here",
+              "your_token_here",
+          }
+          raw = subprocess.check_output(["git", "ls-files", "-z"])
+          files = [p for p in raw.decode().split("\0") if p]
+          findings = []
+          for name in files:
+              path = pathlib.Path(name)
+              if name in skip_exact or any(part in skip_dirs for part in path.parts):
+                  continue
+              if path.suffix.lower() in binary_ext:
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              for label, pattern in patterns:
+                  for match in pattern.finditer(text):
+                      line = text.count("\n", 0, match.start()) + 1
+                      findings.append((name, line, label))
+              if path.suffix.lower() in assignment_ext or path.name.startswith(".env"):
+                  for match in assignment.finditer(text):
+                      value = match.group(2).strip().strip("'\"")
+                      low = value.lower()
+                      if low in allow_values or low.startswith("${{") or low.startswith("$"):
+                          continue
+                      if "example" in low or "placeholder" in low or "your_" in low:
+                          continue
+                      line = text.count("\n", 0, match.start()) + 1
+                      findings.append((name, line, "secret-like assignment"))
+
+          if findings:
+              for file_name, line, label in findings:
+                  print(f"::error file={file_name},line={line}::Potential {label} committed")
+              sys.exit(1)
+          print("No obvious committed secrets found.")
+          PY
