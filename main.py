@@ -392,6 +392,7 @@ except ImportError:
 BASE_DIR      = Path(__file__).resolve().parent
 PROJECT_ROOT  = BASE_DIR.parent
 STORAGE_PATH  = Path(os.getenv("PLANTWATCH_STORAGE", str(BASE_DIR / "Storage_Data")))
+AVATAR_STORAGE_PATH = Path(os.getenv("AIGRI_AVATAR_STORAGE", str(BASE_DIR / "Profile_Avatars")))
 CONF_THRESH   = 0.45
 TRIGGER_PCT   = 45.0    # auto irrigation trigger
 STOP_PCT      = 65.0    # irrigation re-read target: stop once moisture reaches this
@@ -583,7 +584,32 @@ def _asset_url(filename: str) -> str:
 
 
 def _avatar_dir() -> Path:
+    return AVATAR_STORAGE_PATH
+
+
+def _legacy_avatar_dir() -> Path:
     return STORAGE_PATH / "avatars"
+
+
+def _migrate_legacy_avatars():
+    legacy = _legacy_avatar_dir()
+    current = _avatar_dir()
+    if not legacy.is_dir():
+        return
+    try:
+        current.mkdir(parents=True, exist_ok=True)
+        for old in legacy.iterdir():
+            if old.is_file() and old.suffix.lower() in _AVATAR_EXTS:
+                dest = current / old.name
+                if not dest.exists():
+                    shutil.copy2(old, dest)
+                old.unlink(missing_ok=True)
+        try:
+            legacy.rmdir()
+        except OSError:
+            pass
+    except OSError as exc:
+        hailo_logger.warning(f"profile avatar migration skipped: {exc}")
 
 
 def _safe_avatar_stem(username: str) -> str:
@@ -2995,6 +3021,7 @@ async def require_admin(_user: str = Depends(require_auth)):
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     STORAGE_PATH.mkdir(parents=True, exist_ok=True)
+    _migrate_legacy_avatars()
     _db_init()
     task = asyncio.create_task(ws_push_task())
     try:
