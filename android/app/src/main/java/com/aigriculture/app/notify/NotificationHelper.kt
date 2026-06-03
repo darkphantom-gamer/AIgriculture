@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
@@ -17,6 +18,7 @@ import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.aigriculture.app.MainActivity
 import com.aigriculture.app.R
 
 /**
@@ -99,11 +101,13 @@ object NotificationHelper {
         threat: Boolean = false,
         picture: Bitmap? = null,
         id: Int? = null,
+        target: String = NotificationRoute.STATUS,
     ): Int? {
         ensureChannel(context)
         if (!canPostNotifications(context)) return null
         val update = id != null
         val manager = NotificationManagerCompat.from(context)
+        val notificationId = id ?: nextId++
         val builder = NotificationCompat.Builder(
             context,
             if (threat) CHANNEL_THREATS else CHANNEL_EVENTS,
@@ -114,6 +118,7 @@ object NotificationHelper {
             .setPriority(if (threat) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(if (threat) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
+            .setContentIntent(contentIntent(context, notificationId, target, title, body))
             .setOnlyAlertOnce(update)
             .setSilent(update)
             .apply {
@@ -137,7 +142,6 @@ object NotificationHelper {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
         }
         try {
-            val notificationId = id ?: nextId++
             manager.notify(notificationId, builder.build())
             return notificationId
         } catch (_: SecurityException) {
@@ -146,9 +150,32 @@ object NotificationHelper {
         }
     }
 
-    fun notifyThreat(context: Context, title: String, body: String, picture: Bitmap? = null): Int? {
+    fun notifyThreat(
+        context: Context,
+        title: String,
+        body: String,
+        picture: Bitmap? = null,
+        target: String = NotificationRoute.SECURITY,
+    ): Int? {
         playThreatSound(context)
-        return notify(context, title, body, threat = true, picture = picture)
+        return notify(context, title, body, threat = true, picture = picture, target = target)
+    }
+
+    private fun contentIntent(
+        context: Context,
+        requestCode: Int,
+        target: String,
+        title: String,
+        body: String,
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            putExtra(NotificationRoute.EXTRA_TARGET, target)
+            putExtra(NotificationRoute.EXTRA_TITLE, title)
+            putExtra(NotificationRoute.EXTRA_BODY, body)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getActivity(context, requestCode, intent, flags)
     }
 
     private fun threatSoundUri(context: Context): Uri =

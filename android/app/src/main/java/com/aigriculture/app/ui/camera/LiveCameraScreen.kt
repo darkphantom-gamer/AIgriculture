@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -25,8 +26,13 @@ import com.aigriculture.app.ui.theme.AigriText
 
 /** One "Live Camera" tab that hosts both feeds, mirroring the web Cameras page. */
 @Composable
-fun LiveCameraScreen() {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+fun LiveCameraScreen(initialTab: Int = 0, tabSignal: Long = 0L) {
+    var tab by rememberSaveable { mutableIntStateOf(initialTab.coerceIn(0, 1)) }
+
+    LaunchedEffect(tabSignal) {
+        tab = initialTab.coerceIn(0, 1)
+    }
+
     Column(Modifier.fillMaxSize().background(AigriBg)) {
         Column(Modifier.fillMaxWidth().background(AigriSidebar).padding(16.dp)) {
             Text("Live Camera", color = AigriText, fontWeight = FontWeight.W700, fontSize = 16.sp)

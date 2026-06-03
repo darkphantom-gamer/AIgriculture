@@ -1467,6 +1467,7 @@ async def ws_push_task():
                 mv = dict(moisture_vals)
             with pump_lock:
                 ps = dict(pump_states)
+                mp = dict(manual_pumps)
             with at_farm_lock:
                 af = at_farm
             with auto_lock:
@@ -1481,6 +1482,7 @@ async def ws_push_task():
                 "moisture": mv,
                 "sensor_status": ss,
                 "pumps":    ps,
+                "manual_irrigation": mp,
                 "auto_irr": ae,
                 "at_farm":  af,
                 "security_cam_on": security_cam_on,
@@ -3929,6 +3931,7 @@ def state_api(_user: str = Depends(require_auth)):
         mv = dict(moisture_vals)
     with pump_lock:
         ps = dict(pump_states)
+        mp = dict(manual_pumps)
     with at_farm_lock:
         af = at_farm
     with auto_lock:
@@ -3941,6 +3944,7 @@ def state_api(_user: str = Depends(require_auth)):
         "moisture": mv,
         "sensor_status": _sensor_snapshot(),
         "pumps":    ps,
+        "manual_irrigation": mp,
         "auto_irr": ae,
         "at_farm":  af,
         "security_cam_on": security_cam_on,

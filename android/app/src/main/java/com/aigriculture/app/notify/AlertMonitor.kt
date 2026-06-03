@@ -187,9 +187,19 @@ object AlertMonitor {
                 if (on != was) {
                     val label = plantLabel(s, plant)
                     if (on) {
-                        NotificationHelper.notify(ctx, "Irrigation started", "$label is being watered · ${now()}")
+                        NotificationHelper.notify(
+                            ctx,
+                            "Irrigation started",
+                            "$label is being watered · ${now()}",
+                            target = NotificationRoute.STATUS,
+                        )
                     } else {
-                        NotificationHelper.notify(ctx, "Irrigation stopped", "$label watering finished · ${now()}")
+                        NotificationHelper.notify(
+                            ctx,
+                            "Irrigation stopped",
+                            "$label watering finished · ${now()}",
+                            target = NotificationRoute.STATUS,
+                        )
                     }
                 }
             }
@@ -203,6 +213,7 @@ object AlertMonitor {
                     ctx,
                     "Sensor offline",
                     "${plantLabel(s, plant)} moisture sensor stopped reporting · ${now()}",
+                    target = NotificationRoute.STATUS,
                 )
             }
             for (plant in prevOfflineSensors - offlineSensors) {
@@ -210,6 +221,7 @@ object AlertMonitor {
                     ctx,
                     "Sensor online",
                     "${plantLabel(s, plant)} moisture sensor recovered · ${now()}",
+                    target = NotificationRoute.STATUS,
                 )
             }
             prevOfflineSensors = offlineSensors
@@ -232,15 +244,16 @@ object AlertMonitor {
                     "FarmMonitor camera",
                     if (farmCameraOk) "Camera feed recovered · ${now()}" else "Camera feed is offline · ${now()}",
                     "api/farm_monitor/snapshot.jpg",
+                    NotificationRoute.FARM_MONITOR,
                 )
             }
             prevFarmCameraOk = farmCameraOk
 
             if (farmState != null && farmState != prevFarmState) {
                 when (farmState.lowercase(Locale.US)) {
-                    "queued" -> NotificationHelper.notify(ctx, "FarmMonitor scan queued", "A plant-health scan is waiting · ${now()}")
-                    "scanning" -> NotificationHelper.notify(ctx, "FarmMonitor scan running", "Plant-health analysis started · ${now()}")
-                    "error" -> NotificationHelper.notify(ctx, "FarmMonitor needs attention", "${farmMessage(s) ?: "Scan failed"} · ${now()}")
+                    "queued" -> NotificationHelper.notify(ctx, "FarmMonitor scan queued", "A plant-health scan is waiting · ${now()}", target = NotificationRoute.FARM_MONITOR)
+                    "scanning" -> NotificationHelper.notify(ctx, "FarmMonitor scan running", "Plant-health analysis started · ${now()}", target = NotificationRoute.FARM_MONITOR)
+                    "error" -> NotificationHelper.notify(ctx, "FarmMonitor needs attention", "${farmMessage(s) ?: "Scan failed"} · ${now()}", target = NotificationRoute.FARM_MONITOR)
                 }
             }
             prevFarmState = farmState
@@ -252,6 +265,7 @@ object AlertMonitor {
                     "Farm scan complete",
                     "$msg · ${now()}",
                     "api/farm_monitor/snapshot.jpg",
+                    NotificationRoute.FARM_MONITOR,
                 )
             }
             if (scanSig != null) lastScanSig = scanSig
@@ -272,6 +286,7 @@ object AlertMonitor {
                     ctx,
                     "Plant running dry",
                     "${plantLabel(s, plant)} moisture is low$value · ${now()}",
+                    target = NotificationRoute.STATUS,
                 )
                 lastDryNotify[plant] = nowMs
             }
@@ -299,14 +314,14 @@ object AlertMonitor {
         if (dryPlants.isNotEmpty()) {
             val labels = dryPlants.take(3).joinToString(", ") { plantLabel(s, it) }
             val more = if (dryPlants.size > 3) " +${dryPlants.size - 3} more" else ""
-            NotificationHelper.notify(ctx, "Plants running dry", "$labels$more need water · ${now()}")
+            NotificationHelper.notify(ctx, "Plants running dry", "$labels$more need water · ${now()}", target = NotificationRoute.STATUS)
             val nowMs = System.currentTimeMillis()
             dryPlants.forEach { lastDryNotify[it] = nowMs }
         }
         when (farmState?.lowercase(Locale.US)) {
-            "queued" -> NotificationHelper.notify(ctx, "FarmMonitor scan queued", "A plant-health scan is waiting · ${now()}")
-            "scanning" -> NotificationHelper.notify(ctx, "FarmMonitor scan running", "Plant-health analysis is active · ${now()}")
-            "error" -> NotificationHelper.notify(ctx, "FarmMonitor needs attention", "${farmMessage(s) ?: "Scan failed"} · ${now()}")
+            "queued" -> NotificationHelper.notify(ctx, "FarmMonitor scan queued", "A plant-health scan is waiting · ${now()}", target = NotificationRoute.FARM_MONITOR)
+            "scanning" -> NotificationHelper.notify(ctx, "FarmMonitor scan running", "Plant-health analysis is active · ${now()}", target = NotificationRoute.FARM_MONITOR)
+            "error" -> NotificationHelper.notify(ctx, "FarmMonitor needs attention", "${farmMessage(s) ?: "Scan failed"} · ${now()}", target = NotificationRoute.FARM_MONITOR)
         }
         if (farmCameraOk == false) {
             notifyWithSnapshot(
@@ -314,6 +329,7 @@ object AlertMonitor {
                 "FarmMonitor camera",
                 "Camera feed is offline · ${now()}",
                 "api/farm_monitor/snapshot.jpg",
+                NotificationRoute.FARM_MONITOR,
             )
         }
     }
@@ -333,13 +349,19 @@ object AlertMonitor {
     private fun now(): String = clock.format(Date())
 
     private fun notifyThreatWithSnapshot(ctx: Context, title: String, body: String, path: String) {
-        val id = NotificationHelper.notifyThreat(ctx, title, body)
-        updateNotificationWithSnapshot(id, ctx, title, body, path, threat = true)
+        val id = NotificationHelper.notifyThreat(ctx, title, body, target = NotificationRoute.SECURITY)
+        updateNotificationWithSnapshot(id, ctx, title, body, path, threat = true, target = NotificationRoute.SECURITY)
     }
 
-    private fun notifyWithSnapshot(ctx: Context, title: String, body: String, path: String) {
-        val id = NotificationHelper.notify(ctx, title, body)
-        updateNotificationWithSnapshot(id, ctx, title, body, path, threat = false)
+    private fun notifyWithSnapshot(
+        ctx: Context,
+        title: String,
+        body: String,
+        path: String,
+        target: String = NotificationRoute.STATUS,
+    ) {
+        val id = NotificationHelper.notify(ctx, title, body, target = target)
+        updateNotificationWithSnapshot(id, ctx, title, body, path, threat = false, target = target)
     }
 
     private fun updateNotificationWithSnapshot(
@@ -349,11 +371,12 @@ object AlertMonitor {
         body: String,
         path: String,
         threat: Boolean,
+        target: String,
     ) {
         if (id == null) return
         scope?.launch(Dispatchers.IO) {
             val picture = snapshot(path) ?: return@launch
-            NotificationHelper.notify(ctx, title, body, threat = threat, picture = picture, id = id)
+            NotificationHelper.notify(ctx, title, body, threat = threat, picture = picture, id = id, target = target)
         }
     }
 

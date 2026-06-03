@@ -1,6 +1,7 @@
 package com.aigriculture.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.aigriculture.app.nav.AppNav
 import com.aigriculture.app.notify.NotificationHelper
+import com.aigriculture.app.notify.NotificationLaunchBus
 import com.aigriculture.app.ui.theme.AigriBg
 import com.aigriculture.app.ui.theme.AigricultureTheme
 
@@ -26,6 +28,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NotificationHelper.ensureChannel(this)
+        NotificationLaunchBus.publish(intent)
         requestNotificationPermission()
         setContent {
             AigricultureTheme {
@@ -34,6 +37,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        NotificationLaunchBus.publish(intent)
     }
 
     /** Ask for POST_NOTIFICATIONS on first launch (Android 13+ only). */

@@ -9,6 +9,7 @@ import com.aigriculture.app.data.net.FloraSocket
 import com.aigriculture.app.data.net.ScheduleTask
 import com.aigriculture.app.data.net.WsStatus
 import com.aigriculture.app.notify.NotificationHelper
+import com.aigriculture.app.notify.NotificationRoute
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -123,21 +124,21 @@ class FloraViewModel(application: Application) : AndroidViewModel(application) {
                 val msg = str(m, "content")
                 _ui.update { it.copy(typing = false) }
                 addMsg(Role.SYS, "⚠️ $msg")
-                NotificationHelper.notify(appContext, "FLORA needs attention", msg.ifBlank { "A FLORA request failed." })
+                NotificationHelper.notify(appContext, "FLORA needs attention", msg.ifBlank { "A FLORA request failed." }, target = NotificationRoute.FLORA)
             }
             "thinking" -> addMsg(Role.SYS, str(m, "content"))
             "auto_offline" -> {
                 val reason = str(m, "reason")
                 _ui.update { it.copy(mode = "offline") }
                 addMsg(Role.SYS, "📡 Offline: $reason")
-                NotificationHelper.notify(appContext, "FLORA switched offline", reason.ifBlank { "Cloud mode is unavailable." })
+                NotificationHelper.notify(appContext, "FLORA switched offline", reason.ifBlank { "Cloud mode is unavailable." }, target = NotificationRoute.FLORA)
             }
             "tool_call" -> addMsg(Role.SYS, "🔧 " + str(m, "tool") + "…")
             "scheduled_result" -> {
                 val summary = m["summary"]?.jsonPrimitive?.content
                 val text = summary ?: ("✅ " + str(m, "tool") + " completed")
                 addMsg(Role.FLORA, text)
-                NotificationHelper.notify(appContext, "FLORA task complete", text)
+                NotificationHelper.notify(appContext, "FLORA task complete", text, target = NotificationRoute.FLORA)
                 loadSchedule()
             }
             // tool_result and other intermediate events: the final 'response' carries the text.

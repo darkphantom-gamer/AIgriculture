@@ -71,6 +71,7 @@ data class StateMsg(
     val moisture: Map<String, Double?> = emptyMap(),
     val sensor_status: Map<String, SensorStatus> = emptyMap(),
     val pumps: Map<String, Boolean> = emptyMap(),
+    val manual_irrigation: Map<String, Boolean> = emptyMap(),
     val auto_irr: Boolean = false,
     val at_farm: Boolean = false,
     val security_cam_on: Boolean? = null,

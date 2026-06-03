@@ -23,11 +23,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,6 +66,7 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatusScreen(vm: StatusViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
@@ -88,53 +91,59 @@ fun StatusScreen(vm: StatusViewModel = viewModel()) {
             ErrorBanner(ui.toast!!, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp))
         }
 
-        when {
-            ui.loading && state == null -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator(color = AigriAccent)
-            }
-            ui.error != null && state == null -> Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(ui.error!!, color = AigriMuted)
-                Spacer(Modifier.height(16.dp))
-                PrimaryButton("Retry", vm::retry)
-            }
-            state != null -> LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item { OverviewCard(state) }
-                item { GlobalMoistureCard(state) }
-                item { AutoCard(state, vm::toggleAuto) }
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Dimens.radiusSm))
-                            .border(1.dp, AigriBorder, RoundedCornerShape(Dimens.radiusSm))
-                            .clickable { vm.openSensorPicker() }
-                            .padding(14.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("+ Add sensors", color = AigriAccent, fontWeight = FontWeight.W700, fontSize = 14.sp)
-                    }
+        PullToRefreshBox(
+            isRefreshing = ui.refreshing,
+            onRefresh = vm::refresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            when {
+                ui.loading && state == null -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    CircularProgressIndicator(color = AigriAccent)
                 }
-                val plants = state.active_plants
-                item { SectionLabel("Plants", Modifier.padding(top = 4.dp)) }
-                if (plants.isEmpty()) {
+                ui.error != null && state == null -> Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(ui.error!!, color = AigriMuted)
+                    Spacer(Modifier.height(16.dp))
+                    PrimaryButton("Retry", vm::retry)
+                }
+                state != null -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item { OverviewCard(state) }
+                    item { GlobalMoistureCard(state) }
+                    item { AutoCard(state, vm::toggleAuto) }
                     item {
-                        AigriCard(Modifier.fillMaxWidth()) {
-                            Text("No active sensors yet.", color = AigriText, fontWeight = FontWeight.W600)
-                            Spacer(Modifier.height(4.dp))
-                            Text("Use “+ Add sensors” on the dashboard to register them.", color = AigriMuted, fontSize = 12.sp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Dimens.radiusSm))
+                                .border(1.dp, AigriBorder, RoundedCornerShape(Dimens.radiusSm))
+                                .clickable { vm.openSensorPicker() }
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("+ Add sensors", color = AigriAccent, fontWeight = FontWeight.W700, fontSize = 14.sp)
                         }
                     }
-                }
-                items(plants, key = { it }) { p ->
-                    PlantCard(p, state, p in ui.busyPlants, vm::pump)
+                    val plants = state.active_plants
+                    item { SectionLabel("Plants", Modifier.padding(top = 4.dp)) }
+                    if (plants.isEmpty()) {
+                        item {
+                            AigriCard(Modifier.fillMaxWidth()) {
+                                Text("No active sensors yet.", color = AigriText, fontWeight = FontWeight.W600)
+                                Spacer(Modifier.height(4.dp))
+                                Text("Use “+ Add sensors” on the dashboard to register them.", color = AigriMuted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    items(plants, key = { it }) { p ->
+                        PlantCard(p, state, p in ui.busyPlants, vm::pump)
+                    }
                 }
             }
         }
@@ -227,7 +236,8 @@ private fun PlantCard(
 ) {
     val name = state.plant_names[plant] ?: "Plant ${plant.uppercase()}"
     val moisture = state.moisture[plant]
-    val pumpOn = state.pumps[plant] == true
+    val manualSession = state.manual_irrigation[plant] == true
+    val pumpOn = manualSession || state.pumps[plant] == true
     val hasPump = state.pumps.containsKey(plant)
     val online = state.sensor_status[plant]?.online ?: false
 
@@ -255,7 +265,7 @@ private fun PlantCard(
                 )
                 if (pumpOn) {
                     Spacer(Modifier.height(6.dp))
-                    Text("💧 watering…", color = AigriBlue, fontSize = 12.sp)
+                    Text("💧 watering session active", color = AigriBlue, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.width(12.dp))

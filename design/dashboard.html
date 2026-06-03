@@ -426,7 +426,7 @@ const PAGE_TITLES={flora:'FLORA Intelligence',home:'FARM STATUS',camera:'Live Ca
 const EMOJI={person:'🧑',bear:'🐻',elephant:'🐘',cow:'🐄',horse:'🐎',dog:'🐕',sheep:'🐑',cat:'🐈',zebra:'🦓',bird:'🐦'};
 const LOW_CORTISOL_IMG='/img/low-cortisol.png';
 
-let state={moisture:{a:null,b:null,c:null,d:null},pumps:{a:false,b:false,c:false,d:false},auto_irr:true,at_farm:false,alerts:[],burst:{a:'idle',b:'idle',c:'idle',d:'idle'}};
+let state={moisture:{a:null,b:null,c:null,d:null},pumps:{a:false,b:false,c:false,d:false},manual_irrigation:{a:false,b:false,c:false,d:false},auto_irr:true,at_farm:false,alerts:[],burst:{a:'idle',b:'idle',c:'idle',d:'idle'}};
 let prevAlertNames='';
 let detectionsTodayCount=0;
 let lastEventTime='—';
@@ -560,12 +560,14 @@ function renderPlants(){
   for(const p of _act){
     const _ss=state.sensor_status&&state.sensor_status[p];
     if(_ss&&_ss.online!==true){
+      const _manualSession=state.manual_irrigation&&state.manual_irrigation[p]===true;
+      const _offlinePumping=(_manualSession||state.pumps[p]===true);
       document.getElementById('pc-'+p).className='plant-card c-offline';
       document.getElementById('gf-'+p).style.strokeDashoffset=ARC;
       document.getElementById('pv-'+p).textContent='--';
       const _pb=document.getElementById('pb-'+p);_pb.textContent='Sensor Offline';_pb.className='pc-badge bg-offline';
-      const _bt=document.getElementById('btn-'+p);if(_bt){_bt.className='btn-water locked';_bt.disabled=true;_bt.textContent='Sensor Offline';_bt.dataset.pumpOn='false';_bt.title='No moisture reading — watering is disabled until the sensor is back online';}
-      _setMeta(p,(state.last_watered&&state.last_watered[p]),'Check sensor wiring','var(--muted)');
+      const _bt=document.getElementById('btn-'+p);if(_bt){if(_offlinePumping){_bt.className='btn-water pumping';_bt.disabled=false;_bt.textContent='⏹ Stop '+p.toUpperCase();_bt.dataset.pumpOn='true';_bt.title='Stop manual irrigation for Plant '+p.toUpperCase();}else{_bt.className='btn-water locked';_bt.disabled=true;_bt.textContent='Sensor Offline';_bt.dataset.pumpOn='false';_bt.title='No moisture reading — watering is disabled until the sensor is back online';}}
+      _setMeta(p,(state.last_watered&&state.last_watered[p]),_offlinePumping?'Watering now':'Check sensor wiring',_offlinePumping?'var(--blue)':'var(--muted)');
       continue;
     }
     const v=state.moisture[p];const c=plantClass(v);const disp=v!==null?Math.round(v)+'%':'--';
@@ -577,12 +579,13 @@ function renderPlants(){
     const btn=document.getElementById('btn-'+p);
     const isAutoIrr=state.burst&&(state.burst[p]==='burst_on'||state.burst[p]==='burst_wait');
     const manualOn=btn.dataset.pumpOn==='true';
-    const pumping=(manualOn||state.pumps[p])&&!isAutoIrr;
+    const manualSession=state.manual_irrigation&&state.manual_irrigation[p]===true;
+    const pumping=(manualSession||manualOn||state.pumps[p])&&!isAutoIrr;
     const locked=v!==null&&v>=LOCK_PCT&&!pumping&&!isAutoIrr;
     if(isAutoIrr){ btn.className='btn-water auto-irr';btn.disabled=true;btn.textContent=state.burst[p]==='burst_on'?'⚙️ Auto Irrigating…':'⏳ Waiting…';btn.dataset.pumpOn='false'; }
-    else if(pumping){ btn.className='btn-water pumping';btn.disabled=false;if(btn.textContent!=='⏳ Pumping…')btn.textContent='⏳ Pumping…'; }
+    else if(pumping){ btn.className='btn-water pumping';btn.disabled=false;btn.textContent='⏹ Stop '+p.toUpperCase();btn.dataset.pumpOn='true';btn.title='Stop manual irrigation for Plant '+p.toUpperCase(); }
     else if(locked){ btn.className='btn-water locked';btn.disabled=true;btn.textContent='🔒 Locked';btn.dataset.pumpOn='false'; }
-    else{ btn.className='btn-water on';btn.disabled=false;btn.textContent='💧 Water '+p.toUpperCase();btn.dataset.pumpOn='false'; }
+    else{ btn.className='btn-water on';btn.disabled=false;btn.textContent='💧 Water '+p.toUpperCase();btn.dataset.pumpOn='false';btn.title='Start manual irrigation for Plant '+p.toUpperCase(); }
     let _act,_acol;
     if(isAutoIrr){ _act='Auto-watering now'; _acol='var(--blue)'; }
     else if(pumping){ _act='Watering now'; _acol='var(--blue)'; }
@@ -679,12 +682,14 @@ async function manualPump(p){
   const btn=document.getElementById('btn-'+p);if(btn.disabled)return;
   if(state.burst&&(state.burst[p]==='burst_on'||state.burst[p]==='burst_wait')){ showToast(`⚙️ Auto irrigating Plant ${p.toUpperCase()} — toggle Auto OFF to take control`);return; }
   const isOn=btn.classList.contains('pumping')||btn.dataset.pumpOn==='true';const action=isOn?'off':'on';
-  if(action==='on'){ btn.className='btn-water pumping';btn.textContent='⏳ Pumping…';btn.dataset.pumpOn='true'; }
+  if(action==='on'){ btn.className='btn-water pumping';btn.textContent='⏹ Stop '+p.toUpperCase();btn.dataset.pumpOn='true'; }
   else{ btn.className='btn-water on';btn.textContent='💧 Water '+p.toUpperCase();btn.dataset.pumpOn='false'; }
+  if(!state.manual_irrigation)state.manual_irrigation={};
+  state.manual_irrigation[p]=(action==='on');
   state.pumps[p]=(action==='on');
   try{
     const r=await fetch(`/api/pump/${p}/${action}`,{method:'POST'});const d=await r.json();
-    if(!d.ok){ btn.className='btn-water on';btn.textContent='💧 Water '+p.toUpperCase();btn.dataset.pumpOn='false';state.pumps[p]=false; if(d.error==='locked'){showToast(`🔒 Plant ${p.toUpperCase()} locked — moisture ≥ ${d.lock_at}%`);}else{showToast(`⚠️ Pump error: ${d.error}`);} return; }
+    if(!d.ok){ btn.className='btn-water on';btn.textContent='💧 Water '+p.toUpperCase();btn.dataset.pumpOn='false';state.pumps[p]=false;state.manual_irrigation[p]=false; if(d.error==='locked'){showToast(`🔒 Plant ${p.toUpperCase()} locked — moisture ≥ ${d.lock_at}%`);}else{showToast(`⚠️ Pump error: ${d.error}`);} return; }
     if(action==='on'){ lastIrrPlant=`Plant ${p.toUpperCase()} · just now`; if(PREFS.notif_irr)showToast(`💧 Plant ${p.toUpperCase()} pump ON`); addEvent('teal',`Manual irrigation · Plant ${p.toUpperCase()}`); }
     else{ if(PREFS.notif_irr)showToast(`⏹ Plant ${p.toUpperCase()} pump OFF`); }
   }catch(e){ btn.className='btn-water on';btn.textContent='💧 Water '+p.toUpperCase();btn.dataset.pumpOn='false';state.pumps[p]=false;showToast('⚠️ No connection to backend'); }

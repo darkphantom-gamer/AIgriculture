@@ -23,6 +23,7 @@ data class StatusUi(
     val state: StateMsg? = null,
     val connected: Boolean = false,
     val loading: Boolean = true,
+    val refreshing: Boolean = false,
     val error: String? = null,
     val toast: String? = null,
     val busyPlants: Set<String> = emptySet(),
@@ -68,6 +69,22 @@ class StatusViewModel : ViewModel() {
     }
 
     fun clearToast() = _ui.update { it.copy(toast = null) }
+
+    fun refresh() {
+        if (_ui.value.refreshing) return
+        _ui.update { it.copy(refreshing = true, error = null) }
+        viewModelScope.launch {
+            when (val r = AigriRepository.state()) {
+                is ApiResult.Ok -> _ui.update {
+                    it.copy(state = r.value, loading = false, refreshing = false, error = null)
+                }
+                is ApiResult.Err -> _ui.update {
+                    it.copy(loading = false, refreshing = false, error = r.message, toast = r.message)
+                }
+            }
+            socket.connect()
+        }
+    }
 
     fun openSensorPicker() {
         _ui.update { it.copy(sensorPicker = SensorPickerUi(scanning = true)) }
