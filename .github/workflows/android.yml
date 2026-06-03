@@ -10,10 +10,14 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
-  
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  RELEASE_TAG: app-v0.1.0
+  RELEASE_APK_NAME: AIgriculture.apk
 
 jobs:
   build:
@@ -44,9 +48,18 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
+      - name: Prepare APK
+        run: cp app/build/outputs/apk/debug/*.apk "$RELEASE_APK_NAME"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: AIgriculture-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android/${{ env.RELEASE_APK_NAME }}
           if-no-files-found: error
+
+      - name: Update beta release APK
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" "$RELEASE_APK_NAME" --clobber
