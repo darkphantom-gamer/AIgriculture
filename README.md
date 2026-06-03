@@ -14,6 +14,7 @@ Monitor soil moisture, automate irrigation, detect disease,detect harvest ready,
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-Pi%20native%20(3.13)-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-4%20%7C%205-c51a4a)](https://www.raspberrypi.com/)
+[![Android build](https://github.com/darkphantom-gamer/AIgriculture/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/darkphantom-gamer/AIgriculture/actions/workflows/android.yml)
 
 </div>
 
