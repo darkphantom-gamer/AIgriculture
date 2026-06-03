@@ -96,7 +96,7 @@ jobs:
                   for match in assignment.finditer(text):
                       value = match.group(2).strip().strip("'\"")
                       low = value.lower()
-                      if low in allow_values or low.startswith("${{") or low.startswith("$"):
+                      if low in allow_values or low.startswith("$" + "{{") or low.startswith("$"):
                           continue
                       if "example" in low or "placeholder" in low or "your_" in low:
                           continue
