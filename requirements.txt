@@ -4,7 +4,7 @@
 #        or use the docker-compose stack so you don't have to.
 
 # ── Web dashboard / API ────────────────────────────────────────────────────
-fastapi>=0.110
+fastapi>=0.136.3
 uvicorn[standard]>=0.27
 python-multipart>=0.0.9
 PyJWT>=2.8
