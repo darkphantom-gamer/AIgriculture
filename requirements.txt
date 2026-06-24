@@ -27,7 +27,7 @@ reportlab>=4.1             # 48-hour PDF farm report
 
 # ── Comms (optional features) ──────────────────────────────────────────────
 meshtastic>=2.3            # LoRa bridge (only needed if MESH_ENABLED=true)
-pypubsub>=4.0              # event bus used by the meshtastic bridge
+pypubsub>=4.0.7              # event bus used by the meshtastic bridge
 
 # ── Raspberry Pi hardware (off-Pi installs can skip — plantwatch.py
 #    guards every hardware import and degrades gracefully) ──────────────────
