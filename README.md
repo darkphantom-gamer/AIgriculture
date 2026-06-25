@@ -511,7 +511,7 @@ paths via env (`DISEASE_MODEL_PATH`, `RIPENESS_MODEL_PATH`, `DISEASE_LABELS_PATH
 ## Author
 
 **The Great Himkamal** ([@darkphantom-gamer](https://github.com/darkphantom-gamer))
-Built and maintained on real hardware — a strawberry farm running on a Raspberry Pi 5.
+Built and maintained on real hardware — A Farm Monitoring system running on a Raspberry Pi 5.
 Contributions, crop models, and translations welcome.
 
 ---
