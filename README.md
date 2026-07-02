@@ -518,4 +518,4 @@ Contributions, crop models, and translations welcome.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+— see [LICENSE](LICENSE).
